@@ -126,7 +126,7 @@ TEXT = {
         "excluded_players_caption": "These players are currently excluded from the selected-group analysis.",
         "selected_group_impact": "2. Selected Group Impact",
         "selected_group_impact_caption": "This section shows the combined results of the selected players within the current sidebar filters.",
-        "score_balance_before_after_exclusion": "3. Score Balance Before and After Exclusion",
+        "positive_negative_net_contribution": "3. Positive and Negative Net Contribution",
         "score_balance_caption": "The left chart shows all players within the current sidebar filters. The right chart shows only the selected players after exclusions.",
         "before_exclusion": "**Before Exclusion**",
         "before_exclusion_caption": "All players within the current sidebar filters.",
@@ -219,7 +219,7 @@ TEXT = {
         "excluded_players_caption": "Estos jugadores están actualmente excluidos del análisis del grupo seleccionado.",
         "selected_group_impact": "2. Impacto del grupo seleccionado",
         "selected_group_impact_caption": "Esta sección muestra los resultados combinados de los jugadores seleccionados según los filtros actuales de la barra lateral.",
-        "score_balance_before_after_exclusion": "3. Balance de puntuación antes y después de las exclusiones",
+        "positive_negative_net_contribution": "3. Contribuciones netas positivas y negativas",
         "score_balance_caption": "El gráfico de la izquierda muestra a todos los jugadores incluidos en los filtros actuales de la barra lateral. El gráfico de la derecha muestra únicamente a los jugadores seleccionados después de las exclusiones.",
         "before_exclusion": "**Antes de las exclusiones**",
         "before_exclusion_caption": "Todos los jugadores incluidos en los filtros actuales de la barra lateral.",
@@ -311,7 +311,7 @@ TEXT = {
         "excluded_players_caption": "Ces joueurs sont actuellement exclus de l’analyse du groupe sélectionné.",
         "selected_group_impact": "2. Impact du groupe sélectionné",
         "selected_group_impact_caption": "Cette section présente les résultats combinés des joueurs sélectionnés selon les filtres actuels de la barre latérale.",
-        "score_balance_before_after_exclusion": "3. Équilibre des scores avant et après les exclusions",
+        "positive_negative_net_contribution": "3. Contributions nettes positives et négatives",
         "score_balance_caption": "Le graphique de gauche montre tous les joueurs correspondant aux filtres actuels de la barre latérale. Le graphique de droite montre uniquement les joueurs sélectionnés après les exclusions.",
         "before_exclusion": "**Avant les exclusions**",
         "before_exclusion_caption": "Tous les joueurs correspondant aux filtres actuels de la barre latérale.",
@@ -403,7 +403,7 @@ TEXT = {
         "excluded_players_caption": "Những người chơi này hiện đang bị loại khỏi phần phân tích nhóm đã chọn.",
         "selected_group_impact": "2. Tác động của nhóm đã chọnt",
         "selected_group_impact_caption": "Phần này hiển thị kết quả tổng hợp của những người chơi đã chọn trong phạm vi các bộ lọc hiện tại trên thanh bên.",
-        "score_balance_before_after_exclusion": "3. Cân bằng điểm trước và sau khi loại người chơi",
+        "positive_negative_net_contribution": "3. Đóng góp ròng dương và âm",
         "score_balance_caption": "Biểu đồ bên trái hiển thị tất cả người chơi thuộc phạm vi các bộ lọc hiện tại trên thanh bên. Biểu đồ bên phải chỉ hiển thị những người chơi được chọn sau khi loại người chơi.",
         "before_exclusion": "**Trước khi loại người chơi**",
         "before_exclusion_caption": "Tất cả người chơi thuộc phạm vi các bộ lọc hiện tại trên thanh bên.",
@@ -1272,7 +1272,7 @@ with tab_player_selection:
     with contribution_container:
         st.divider()
 
-        st.subheader(t("score_balance_before_after_exclusion"))
+        st.subheader(t("positive_negative_net_contribution"))
         st.caption(t("score_balance_caption"))
 
         # Keep stable internal status values for calculations and colors
