@@ -40,6 +40,7 @@ LANGUAGES = {
     "Español": "es",
     "Français": "fr",
     "Tiếng Việt": "vi",
+    "Bahasa Indonesia": "id"
 }
 
 TEXT = {
@@ -96,7 +97,7 @@ TEXT = {
         "negative_players": "Negative Players",
         "total_net_score": "Total Net Score",
         "net_per_player": "Net per Player",
-        "ranking_chart_guide": 
+        "ranking_chart_guide":
         """
         **How to use:**
         By default, the ranking chart compares players from the alliances currently selected in the sidebar. To view a server-wide player ranking, open the alliance filter and choose **Select all**.
@@ -189,7 +190,7 @@ TEXT = {
         "negative_players": "Jugadores negativos",
         "total_net_score": "Puntuación neta total",
         "net_per_player": "Puntuación neta por jugador",
-        "ranking_chart_guide": 
+        "ranking_chart_guide":
         """
         **Cómo utilizarlo:**
         De forma predeterminada, el gráfico de clasificación compara a los jugadores de las alianzas seleccionadas actualmente en la barra lateral. Para ver una clasificación de jugadores de todo el servidor, abra el filtro de alianzas y elija **Select all**.
@@ -282,7 +283,7 @@ TEXT = {
         "negative_players": "Joueurs négatifs",
         "total_net_score": "Score net total",
         "net_per_player": "Score net par joueur",
-        "ranking_chart_guide": 
+        "ranking_chart_guide":
         """
         **Comment l’utiliser :** Par défaut, le graphique de classement compare les joueurs des alliances actuellement sélectionnées dans la barre latérale. Pour afficher un classement des joueurs à l’échelle du serveur, ouvrez le filtre des alliances et choisissez **Select all**.
         """,
@@ -374,7 +375,7 @@ TEXT = {
         "negative_players": "Người chơi âm",
         "total_net_score": "Tổng điểm ròng",
         "net_per_player": "Điểm ròng mỗi người chơi",
-        "ranking_chart_guide": 
+        "ranking_chart_guide":
         """
         **Cách sử dụng:** Theo mặc định, biểu đồ xếp hạng so sánh những người chơi thuộc các liên minh hiện đang được chọn trên thanh bên. Để xem bảng xếp hạng người chơi trên toàn máy chủ, hãy mở bộ lọc liên minh và chọn **Select all**.
         """,
@@ -413,6 +414,99 @@ TEXT = {
         "alliance_impact_selected_players_caption": "Phần này cho biết những người chơi được chọn đóng góp như thế nào cho từng liên minh. Kết quả đầy đủ của một liên minh chỉ được hiển thị khi tất cả người chơi của liên minh đó đều được chọn.",
         "no_players_selected_alliance_summary": "Chưa có người chơi nào được chọn. Hãy chọn ít nhất một người chơi để hiển thị phần tóm tắt theo liên minh."
     },
+    "id": {
+        "app_title": "Dasbor Skor SVS",
+        "app_caption": "Jelajahi dampak pemain dan aliansi terhadap hasil SVS untuk Server 559+461.",
+        "filters": "Filter",
+        "language": "Bahasa",
+        "svs_period": "Periode SVS",
+        "select_alliances": "Pilih aliansi",
+        "select_net_status": "Pilih status bersih",
+        "sidebar_caption": "Filter memengaruhi semua grafik dan tabel. Metrik Ringkasan menampilkan total keseluruhan server untuk periode SVS yang dipilih.",
+        "overview": "Ringkasan",
+        "alliance_summary": "Ringkasan Aliansi",
+        "alliance_summary_caption": "Bandingkan poin yang diperoleh, poin yang hilang, poin bersih, dan jumlah pemain antaraliansi.",
+        "player_data": "Data Pemain",
+        "player_data_caption": "Data SVS tingkat pemain yang telah difilter dan digunakan dalam grafik serta analisis",
+        "player_rankings": "Peringkat Pemain",
+        "select_ranking_view": "Pilih tampilan peringkat",
+        "top_10_net_score": "10 Teratas berdasarkan Poin Bersih",
+        "bottom_10_net_score": "10 Terbawah berdasarkan Poin Bersih",
+        "top_10_score_gained": "10 Teratas berdasarkan Poin yang Diperoleh",
+        "top_10_score_lost": "10 Teratas berdasarkan Poin yang Hilang",
+        "contribution_insight": "Analisis Kontribusi",
+        "contribution_insight_caption": "Lihat bagaimana aliansi yang dipilih berkontribusi terhadap hasil SVS positif dan negatif.",
+        "contribution_share": "### Persentase Kontribusi",
+        "contribution_share_caption": "Persentase positif menunjukkan aliansi mana yang menghasilkan poin bersih positif. Persentase negatif menunjukkan aliansi mana yang menghasilkan poin bersih negatif.",
+        "positive_contribution": "**Kontribusi Positif**",
+        "negative_contribution": "**Kontribusi Negatif**",
+        "positive_side": "**Sisi Positif**",
+        "negative_side": "**Sisi Negatif**",
+        "contribution_details": "### Rincian Kontribusi",
+        "contribution_details_caption": "Tabel menampilkan nilai pasti yang digunakan dalam diagram lingkaran.",
+        "no_positive_net_score": "Tidak ditemukan poin bersih positif dalam data yang dipilih.",
+        "no_negative_net_score": "Tidak ditemukan poin bersih negatif dalam data yang dipilih.",
+        "negative_chart_explanation": "Grafik negatif menggunakan nilai absolut untuk menunjukkan persentase kontribusi setiap aliansi terhadap total dampak negatif.",
+        "player_selection_insight": "Analisis Pemilihan Pemain",
+        "player_selection_insight_caption": "Gunakan tab ini untuk melihat bagaimana penambahan atau penghapusan pemain mengubah hasil tingkat server yang telah difilter dan ringkasan tingkat aliansi.",
+        "score": "Poin",
+        "score_gained": "Poin yang Diperoleh",
+        "score_lost": "Poin yang Hilang",
+        "net_score": "Poin Bersih",
+        "svs_rank": "Peringkat SVS",
+        "players": "Pemain",
+        "alliance": "Aliansi",
+        "player": "Pemain",
+        "filtered_players": "Pemain yang Difilter",
+        "selected_players": "Pemain yang Dipilih",
+        "excluded_players": "Pemain yang Dikecualikan",
+        "no_excluded_players": "Tidak ada pemain yang dikecualikan. Semua pemain yang telah difilter saat ini disertakan.",
+        "positive": "Positif",
+        "negative": "Negatif",
+        "positive_players": "Pemain dengan Poin Bersih Positif",
+        "negative_players": "Pemain dengan Poin Bersih Negatif",
+        "total_net_score": "Total Poin Bersih",
+        "net_per_player": "Poin Bersih per Pemain",
+        "ranking_chart_guide":
+        """
+        **Cara menggunakan:**
+        Secara default, grafik peringkat membandingkan pemain dari aliansi yang saat ini dipilih di bilah sisi. Untuk melihat peringkat pemain di seluruh server, buka filter aliansi lalu pilih **Select all**.
+        """,
+        "status": "Status",
+        "score_gained_vs_net_score": "Poin yang Diperoleh vs Poin Bersih",
+        "scatter_chart_caption": "Setiap titik mewakili satu pemain. Titik di atas nol menunjukkan poin bersih positif, sedangkan titik di bawah nol menunjukkan poin bersih negatif.",
+        "total_net_score_by_alliance": "Total Poin Bersih berdasarkan Aliansi",
+        "total_net_score_by_alliance_caption": "Bandingkan total poin bersih antaraliansi berdasarkan filter saat ini.",
+        "net_score_per_player_by_alliance": "Poin Bersih per Pemain berdasarkan Aliansi",
+        "net_score_per_player_by_alliance_caption": "Bandingkan rata-rata poin bersih per pemain antaraliansi. Ini membantu menyeimbangkan perbandingan antara aliansi besar dan kecil.",
+        "positive_net": "Poin Bersih Positif",
+        "negative_net": "Poin Bersih Negatif",
+        "zero_net_score": "Poin Bersih Nol",
+        "share": "Persentase",
+        "share_percent": "Persentase (%)",
+        "contribution_reading_guide":
+        """
+        **Cara membaca bagian ini:**
+        Persentase Kontribusi Positif menunjukkan aliansi mana yang menghasilkan poin bersih positif server.
+        Persentase Kontribusi Negatif menunjukkan aliansi mana yang menghasilkan poin bersih negatif server.
+        Hasil ini mencerminkan filter bilah sisi yang sedang digunakan.
+        """,
+        "choose_players_to_include": "1. Pilih Pemain yang Akan Disertakan",
+        "choose_players_caption": "Pemain yang dipilih akan disertakan dalam analisis. Keluarkan pemain dari pilihan untuk melihat bagaimana hasil berubah tanpa mereka.",
+        "select_players_to_include": "Pilih pemain yang akan disertakan",
+        "excluded_players_caption": "Pemain ini saat ini dikecualikan dari analisis kelompok yang dipilih.",
+        "selected_group_impact": "2. Dampak Kelompok yang Dipilih",
+        "selected_group_impact_caption": "Bagian ini menampilkan hasil gabungan dari para pemain yang dipilih berdasarkan filter bilah sisi saat ini.",
+        "positive_negative_net_contribution": "3. Kontribusi Bersih Positif dan Negatif",
+        "score_balance_caption": "Grafik sebelah kiri menampilkan semua pemain yang termasuk dalam filter bilah sisi saat ini. Grafik sebelah kanan hanya menampilkan pemain yang dipilih setelah pengecualian.",
+        "before_exclusion": "**Sebelum Pengecualian**",
+        "before_exclusion_caption": "Semua pemain yang termasuk dalam filter bilah sisi saat ini.",
+        "after_exclusion": "**Setelah Pengecualian**",
+        "after_exclusion_caption": "Hanya pemain yang dipilih. Pemain yang dikecualikan tidak disertakan dalam grafik ini.",
+        "alliance_impact_selected_players": "4. Dampak Pemain yang Dipilih terhadap Aliansi",
+        "alliance_impact_selected_players_caption": "Bagian ini menunjukkan kontribusi pemain yang dipilih terhadap setiap aliansi. Hasil lengkap suatu aliansi hanya ditampilkan apabila semua pemainnya dipilih.",
+        "no_players_selected_alliance_summary": "Tidak ada pemain yang dipilih. Pilih setidaknya satu pemain untuk menampilkan ringkasan aliansi."
+    }
 }
 
 def t(key):
@@ -499,7 +593,7 @@ def update_language():
 st.sidebar.header(t("filters"))
 
 selected_language = st.sidebar.selectbox(
-    "Language / Idioma / Langue / Ngôn ngữ",
+    "Language/Idioma/Langue/Ngôn ngữ/Bahasa",
     options=list(LANGUAGES.keys()),
     index=list(LANGUAGES.values()).index(st.session_state["lang"]),
     key="selected_language",
@@ -946,7 +1040,7 @@ with tab_players:
                 t("status")
             ),
         }
-    )            
+    )
 
 ## Contribution by Alliance ##
 with tab_contribution:
