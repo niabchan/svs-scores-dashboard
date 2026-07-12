@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 
 from ask_dashboard import (
@@ -154,3 +156,28 @@ def test_rendering_remains_available_for_user_answer():
     rendered = render_dashboard_answer(answer)
     assert "Players are ranked by" in rendered
     assert "**AAA**" in rendered and "**BBB**" in rendered
+
+
+
+def test_structured_answer_is_json_serializable():
+    answer = ask("What is the total net score without BBB?")
+    encoded = json.dumps(answer)
+    assert '"intent": "alliance_exclusion_total_net"' in encoded
+
+
+def test_rendering_works_after_original_dataframe_is_discarded():
+    data = sample_data()
+    answer = calculate_dashboard_answer(QUESTION_TOP_CONTRIBUTORS, data, "SVS Test")
+    del data
+    rendered = render_dashboard_answer(answer)
+    assert "Players are ranked by" in rendered
+    assert "**AAA**" in rendered
+
+
+def test_renderer_uses_structured_values_without_recalculation():
+    answer = ask("What is the total net score without BBB?")
+    answer["metrics"]["after_net_score"] = 999999
+    answer["metrics"]["net_score_change"] = 998499
+    rendered = render_dashboard_answer(answer)
+    assert "**+999,999**" in rendered
+    assert "**+998,499**" in rendered
