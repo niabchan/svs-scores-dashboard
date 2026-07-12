@@ -56,8 +56,7 @@ def extract_alliance_names_from_question(question, alliance_names):
     matches = []
     for alliance in sorted(
         {str(name) for name in alliance_names if pd.notna(name)},
-        key=len,
-        reverse=True,
+        key=lambda value: (-len(value), value),
     ):
         alliance_text = unicodedata.normalize(
             "NFKC",
@@ -995,6 +994,206 @@ def explain_top_contributors(
     return introduction + "\n\n" + "\n\n".join(sections)
 
 
+
+def _numeric_scope(data, columns):
+    working_df = data[list(columns)].copy()
+    for column in ["score_gained", "score_lost", "net_score"]:
+        if column in working_df.columns:
+            working_df[column] = pd.to_numeric(working_df[column], errors="coerce")
+    return working_df
+
+
+def _base_result(intent, status="ok", period=None, guidance_code=None, error_code=None, parameters=None, metrics=None, rankings=None, data=None, selected_player_names=None, known_alliance_names=None):
+    return {
+        "kind": "dashboard_answer",
+        "intent": intent,
+        "status": status,
+        "period": period,
+        "parameters": parameters or {},
+        "metrics": metrics or {},
+        "rankings": rankings or {},
+        "guidance_code": guidance_code,
+        "error_code": error_code,
+        "_render_context": {
+            "data": data,
+            "selected_player_names": selected_player_names,
+            "known_alliance_names": known_alliance_names,
+        },
+    }
+
+
+def _missing_columns_result(intent, missing, period, data, parameters=None):
+    return _base_result(
+        intent,
+        status="error",
+        period=period,
+        error_code="missing_columns",
+        parameters={**(parameters or {}), "missing_columns": sorted(missing)},
+        data=data,
+    )
+
+
+def calculate_total_net_excluding_alliances(data, excluded_alliances, svs_period=None):
+    intent = "alliance_exclusion_total_net"
+    required = {"alliance", "player_name", "score_gained", "score_lost", "net_score"}
+    missing = required.difference(data.columns)
+    params = {"excluded_alliances": [str(name) for name in (excluded_alliances or [])]}
+    if missing:
+        return _missing_columns_result(intent, missing, svs_period, data, params)
+    if not excluded_alliances:
+        return _base_result(intent, "guidance", svs_period, "missing_alliance_name", parameters=params, data=data)
+    df = _numeric_scope(data, ["alliance", "player_name", "score_gained", "score_lost", "net_score"]).dropna(subset=["alliance", "net_score"])
+    if df.empty:
+        return _base_result(intent, "guidance", svs_period, "empty_score_scope", parameters=params, data=data)
+    requested_lookup = {str(name).casefold(): str(name) for name in excluded_alliances}
+    in_scope_lookup = {str(name).casefold(): str(name) for name in df["alliance"].dropna().unique()}
+    recognized = [in_scope_lookup[key] for key in requested_lookup if key in in_scope_lookup]
+    outside = [requested_lookup[key] for key in requested_lookup if key not in in_scope_lookup]
+    before_net = df["net_score"].sum()
+    before_players = df["player_name"].nunique()
+    if not recognized:
+        return _base_result(intent, "guidance", svs_period, "alliance_outside_scope", parameters={**params, "recognized_alliances": [], "outside_scope_alliances": outside}, metrics={"before_net_score": before_net, "before_player_count": before_players}, data=data)
+    mask = df["alliance"].astype(str).str.casefold().isin({name.casefold() for name in recognized})
+    excluded_df = df[mask]
+    remaining_df = df[~mask]
+    after_net = remaining_df["net_score"].sum()
+    metrics = {
+        "before_net_score": before_net,
+        "after_net_score": after_net,
+        "net_score_change": after_net - before_net,
+        "excluded_score_gained": excluded_df["score_gained"].sum(),
+        "excluded_score_lost": excluded_df["score_lost"].sum(),
+        "excluded_net_score": excluded_df["net_score"].sum(),
+        "before_player_count": before_players,
+        "after_player_count": remaining_df["player_name"].nunique(),
+    }
+    return _base_result(intent, "ok", svs_period, parameters={**params, "recognized_alliances": recognized, "outside_scope_alliances": outside}, metrics=metrics, data=data)
+
+
+def calculate_net_vs_positive_ranking(data, svs_period=None):
+    intent = "net_vs_positive_ranking"
+    missing = {"alliance", "net_score"}.difference(data.columns)
+    if missing:
+        return _missing_columns_result(intent, missing, svs_period, data)
+    df = data[["alliance", "net_score"]].copy()
+    df["net_score"] = pd.to_numeric(df["net_score"], errors="coerce")
+    df = df.dropna(subset=["alliance", "net_score"])
+    if df.empty:
+        return _base_result(intent, "guidance", svs_period, "empty_score_scope", data=data)
+    if df["alliance"].nunique() < 2:
+        return _base_result(intent, "guidance", svs_period, "requires_multiple_alliances", metrics={"alliance_count": df["alliance"].nunique()}, data=data)
+    if "net_status" in data.columns:
+        statuses = {str(v).strip().lower() for v in data["net_status"].dropna().unique()}
+        if not {"positive", "negative"}.issubset(statuses):
+            return _base_result(intent, "guidance", svs_period, "requires_positive_and_negative_status", parameters={"net_statuses": sorted(statuses)}, data=data)
+    analysis = df.groupby("alliance", as_index=False).agg(
+        total_net_score=("net_score", "sum"),
+        positive_net_score=("net_score", lambda scores: scores[scores > 0].sum()),
+        negative_impact=("net_score", lambda scores: scores[scores < 0].abs().sum()),
+    )
+    analysis["net_rank"] = analysis["total_net_score"].rank(method="min", ascending=False).astype(int)
+    analysis["positive_rank"] = analysis["positive_net_score"].rank(method="min", ascending=False).astype(int)
+    records = analysis.sort_values(["net_rank", "positive_rank", "alliance"]).to_dict("records")
+    top_rows = analysis[analysis["net_rank"] == 1]
+    metrics = {"alliance_count": df["alliance"].nunique()}
+    rankings = {"alliances": records}
+    if len(top_rows) > 1:
+        return _base_result(intent, "guidance", svs_period, "tied_top_net_score", metrics=metrics, rankings=rankings, data=data)
+    top = top_rows.iloc[0]
+    metrics.update({"top_net_alliance": str(top["alliance"]), "top_net_score": top["total_net_score"], "top_positive_rank": int(top["positive_rank"])})
+    leaders = analysis[analysis["positive_rank"] == 1].sort_values("total_net_score", ascending=False)
+    if not leaders.empty:
+        leader = leaders.iloc[0]
+        metrics.update({"positive_leader_alliance": str(leader["alliance"]), "positive_gap": leader["positive_net_score"] - top["positive_net_score"], "negative_advantage": leader["negative_impact"] - top["negative_impact"], "net_lead": top["total_net_score"] - leader["total_net_score"]})
+    return _base_result(intent, "ok", svs_period, metrics=metrics, rankings=rankings, data=data)
+
+
+def _player_scope(data, include_status=False):
+    cols = ["player_name", "score_gained", "score_lost", "net_score"] + (["net_status"] if include_status and "net_status" in data.columns else [])
+    return _numeric_scope(data, cols).dropna(subset=["player_name", "net_score"])
+
+
+def _balance(frame):
+    positive = frame.loc[frame["net_score"] > 0, "net_score"].sum()
+    negative = frame.loc[frame["net_score"] < 0, "net_score"].abs().sum()
+    total = positive + negative
+    return {"positive": positive, "negative": negative, "total_magnitude": total, "negative_share": (negative / total * 100 if total > 0 else None)}
+
+
+def _impact(frame):
+    return {"score_gained": frame["score_gained"].sum(), "score_lost": frame["score_lost"].sum(), "net_score": frame["net_score"].sum(), "positive_contribution": frame.loc[frame["net_score"] > 0, "net_score"].sum(), "negative_impact": frame.loc[frame["net_score"] < 0, "net_score"].abs().sum()}
+
+
+def calculate_exclusion_impact(data, selected_player_names=None, svs_period=None):
+    intent = "player_exclusion_impact"
+    missing = {"player_name", "score_gained", "score_lost", "net_score"}.difference(data.columns)
+    if missing:
+        return _missing_columns_result(intent, missing, svs_period, data)
+    df = _player_scope(data)
+    if df.empty:
+        return _base_result(intent, "guidance", svs_period, "empty_player_scope", data=data, selected_player_names=selected_player_names)
+    all_players = sorted(df["player_name"].dropna().unique().tolist())
+    selected = all_players if selected_player_names is None else [p for p in selected_player_names if p in set(all_players)]
+    selected_df = df[df["player_name"].isin(selected)]
+    excluded_df = df[~df["player_name"].isin(selected)]
+    before = _impact(df); after = _impact(selected_df)
+    changes = {k: after[k] - before[k] for k in before}
+    metrics = {"before": before, "after": after, "changes": changes, "before_player_count": df["player_name"].nunique(), "after_player_count": selected_df["player_name"].nunique(), "excluded_player_count": excluded_df["player_name"].nunique(), "positive_removed": before["positive_contribution"] - after["positive_contribution"], "negative_removed": before["negative_impact"] - after["negative_impact"]}
+    return _base_result(intent, "ok", svs_period, guidance_code=("no_excluded_players" if metrics["excluded_player_count"] == 0 else None), parameters={"selected_players": selected, "excluded_players": sorted(excluded_df["player_name"].dropna().unique().tolist())}, metrics=metrics, data=data, selected_player_names=selected_player_names)
+
+
+def calculate_negative_percentage_change(data, selected_player_names=None, svs_period=None):
+    intent = "negative_share_change"
+    missing = {"player_name", "net_score"}.difference(data.columns)
+    if missing:
+        return _missing_columns_result(intent, missing, svs_period, data)
+    df = _player_scope(data, include_status=True)
+    if df.empty:
+        return _base_result(intent, "guidance", svs_period, "empty_player_scope", data=data, selected_player_names=selected_player_names)
+    if "net_status" in df.columns:
+        statuses = {str(v).strip().lower() for v in df["net_status"].dropna().unique()}
+        if not {"positive", "negative"}.issubset(statuses):
+            return _base_result(intent, "guidance", svs_period, "requires_positive_and_negative_status", parameters={"net_statuses": sorted(statuses)}, data=data, selected_player_names=selected_player_names)
+    all_players = sorted(df["player_name"].dropna().unique().tolist())
+    selected = all_players if selected_player_names is None else [p for p in selected_player_names if p in set(all_players)]
+    selected_df = df[df["player_name"].isin(selected)]
+    excluded_df = df[~df["player_name"].isin(selected)]
+    before = _balance(df); after = _balance(selected_df)
+    metrics = {"before": before, "after": after, "excluded_player_count": excluded_df["player_name"].nunique(), "excluded_players": sorted(excluded_df["player_name"].dropna().unique().tolist())}
+    if before["negative_share"] is not None and after["negative_share"] is not None:
+        metrics.update({"share_change": after["negative_share"] - before["negative_share"], "positive_removed": before["positive"] - after["positive"], "negative_removed": before["negative"] - after["negative"]})
+    return _base_result(intent, "ok", svs_period, guidance_code=("no_excluded_players" if metrics["excluded_player_count"] == 0 else None), parameters={"selected_players": selected, "excluded_players": metrics["excluded_players"]}, metrics=metrics, data=data, selected_player_names=selected_player_names)
+
+
+def calculate_top_contributors(data, svs_period=None, alliance_names=None):
+    intent = "top_contributors"
+    missing = {"alliance", "player_name", "score_gained", "score_lost", "net_score"}.difference(data.columns)
+    params = {"alliance_names": [str(n) for n in (alliance_names or [])]}
+    if missing:
+        return _missing_columns_result(intent, missing, svs_period, data, params)
+    df = _numeric_scope(data, ["alliance", "player_name", "score_gained", "score_lost", "net_score"]).dropna(subset=["alliance", "player_name", "net_score"])
+    if alliance_names:
+        requested = {str(n).casefold() for n in alliance_names}
+        lookup = {str(n).casefold(): str(n) for n in df["alliance"].dropna().unique()}
+        matched = [lookup[n] for n in requested if n in lookup]
+        if not matched:
+            return _base_result(intent, "guidance", svs_period, "alliance_outside_scope", parameters={**params, "matched_alliances": []}, data=data)
+        df = df[df["alliance"].astype(str).str.casefold().isin({n.casefold() for n in matched})]
+        params["matched_alliances"] = matched
+    if df.empty:
+        return _base_result(intent, "guidance", svs_period, "empty_player_scope", parameters=params, data=data)
+    summary = df.groupby(["alliance", "player_name"], as_index=False).agg(score_gained=("score_gained", "sum"), score_lost=("score_lost", "sum"), net_score=("net_score", "sum"))
+    alliances = sorted(summary["alliance"].dropna().astype(str).unique().tolist())
+    top_n = 5 if len(alliances) == 1 else 3
+    groups = []
+    for alliance in alliances:
+        players = summary[summary["alliance"].astype(str) == alliance].sort_values(["net_score", "score_gained", "player_name"], ascending=[False, False, True])
+        positive_players = players[players["net_score"] > 0]
+        ranked = (positive_players if not positive_players.empty else players).head(top_n)
+        positive_total = positive_players["net_score"].sum()
+        groups.append({"alliance": alliance, "positive_total": positive_total, "net_total": players["net_score"].sum(), "top_n": top_n, "ranking_description": ("positive contributors by net score" if not positive_players.empty else "players with the highest net scores; no player has a positive net score in this scope"), "players": [{**row._asdict(), "share_of_positive": (row.net_score / positive_total * 100 if row.net_score > 0 and positive_total > 0 else None)} for row in ranked.itertuples(index=False)]})
+    return _base_result(intent, "ok", svs_period, parameters=params, metrics={"alliance_count": len(alliances), "top_n": top_n}, rankings={"alliances": groups}, data=data)
+
 def _calculate_dashboard_answer_markdown(
     question,
     data,
@@ -1199,18 +1398,68 @@ def _as_structured(kind, markdown):
     return {"kind": kind, "markdown": markdown}
 
 
-def calculate_dashboard_answer(*args, **kwargs):
+def calculate_dashboard_answer(question, data, svs_period=None, selected_player_names=None, known_alliance_names=None):
     """Route a question and return a structured Ask Dashboard answer."""
-    markdown = _calculate_dashboard_answer_markdown(*args, **kwargs)
-    return _as_structured("dashboard_answer", markdown)
-
+    normalized_question = normalize_question_text(question)
+    if known_alliance_names is None:
+        known_alliance_names = data["alliance"].dropna().unique().tolist() if "alliance" in data.columns else []
+    mentioned_alliances = extract_alliance_names_from_question(question, known_alliance_names)
+    common = {"question": question, "mentioned_alliances": mentioned_alliances}
+    if question == QUESTION_NET_VS_POSITIVE:
+        result = calculate_net_vs_positive_ranking(data, svs_period)
+    elif question == QUESTION_EXCLUSION_IMPACT:
+        result = calculate_exclusion_impact(data, selected_player_names, svs_period)
+    elif question == QUESTION_NEGATIVE_PERCENTAGE:
+        result = calculate_negative_percentage_change(data, selected_player_names, svs_period)
+    elif question == QUESTION_TOP_CONTRIBUTORS:
+        result = calculate_top_contributors(data, svs_period)
+    else:
+        exclusion_terms = {"exclude", "excluded", "excluding", "without", "remove", "removed", "removing", "except"}
+        has_exclusion_term = any(term in normalized_question.split() for term in exclusion_terms)
+        if has_exclusion_term and mentioned_alliances and any(term in normalized_question for term in ["alliance", "net", "score", "total", "change"]):
+            result = calculate_total_net_excluding_alliances(data, mentioned_alliances, svs_period)
+        elif has_exclusion_term and ("net score" in normalized_question or "total net" in normalized_question) and not mentioned_alliances:
+            result = _base_result("alliance_exclusion_total_net", "guidance", svs_period, "missing_alliance_name", parameters={"available_alliances": list(map(str, known_alliance_names))}, data=data)
+        elif ("net" in normalized_question and any(term in normalized_question for term in ["alliance", "leader", "top net", "highest net", "first in net", "net score winner"]) and (any(term in normalized_question for term in ["positive contribution", "positive rank", "positive ranking", "first in positive", "top in positive"]) or ("positive" in normalized_question and any(term in normalized_question for term in ["rank", "ranking", "first", "top"])))):
+            result = calculate_net_vs_positive_ranking(data, svs_period)
+        elif has_exclusion_term and ("player" in normalized_question or "selected" in normalized_question) and any(term in normalized_question for term in ["change", "impact", "happen", "result"]):
+            result = calculate_exclusion_impact(data, selected_player_names, svs_period)
+        elif "negative" in normalized_question and any(term in normalized_question for term in ["percentage", "percent", "share", "ratio"]) and any(term in normalized_question for term in ["increase", "increased", "rise", "rose", "change"]):
+            result = calculate_negative_percentage_change(data, selected_player_names, svs_period)
+        elif any(term in normalized_question for term in ["player", "who"]) and any(term in normalized_question for term in ["contribut", "top", "best", "highest net", "most"]) and ("alliance" in normalized_question or mentioned_alliances):
+            result = calculate_top_contributors(data, svs_period, alliance_names=mentioned_alliances or None)
+        else:
+            result = _base_result("unsupported_question", "guidance", svs_period, "unsupported_question", data=data)
+    result["parameters"] = {**common, **result.get("parameters", {})}
+    result["_render_context"].update({"selected_player_names": selected_player_names, "known_alliance_names": known_alliance_names})
+    return result
 
 def render_dashboard_answer(answer):
     """Render a structured Ask Dashboard answer as Markdown."""
-    if isinstance(answer, dict):
-        return answer.get("markdown", "")
-    return str(answer)
-
+    if not isinstance(answer, dict):
+        return str(answer)
+    ctx = answer.get("_render_context", {})
+    data = ctx.get("data")
+    period = answer.get("period")
+    intent = answer.get("intent")
+    params = answer.get("parameters", {})
+    selected = ctx.get("selected_player_names")
+    if data is None:
+        return ""
+    if intent == "alliance_exclusion_total_net":
+        if answer.get("guidance_code") == "missing_alliance_name" and "available_alliances" in params:
+            available_text = ", ".join(map(str, params.get("available_alliances", [])))
+            return ("I understood that you want a total net score after excluding an alliance, but I could not identify the alliance name. Available alliance names for this SVS period are: " f"**{available_text}**.")
+        return explain_total_net_excluding_alliances(data, params.get("excluded_alliances", []), period)
+    if intent == "net_vs_positive_ranking":
+        return explain_net_vs_positive_ranking(data, period)
+    if intent == "player_exclusion_impact":
+        return explain_exclusion_impact(data, selected, period)
+    if intent == "negative_share_change":
+        return explain_negative_percentage_change(data, selected, period)
+    if intent == "top_contributors":
+        return explain_top_contributors(data, period, alliance_names=params.get("alliance_names") or None)
+    return ("I could not map that question to a supported dashboard analysis yet. This version uses rule-based matching rather than an AI API. Try one of these forms:\n\n- **What is the total net score without TDA?**\n- **Who contributed most in SnS?**\n- **How did excluding selected players change the result?**\n- **Why did the negative share rise?**\n- **Why is the net-score leader not first in positive contribution?**")
 
 def answer_dashboard_question(*args, **kwargs):
     """Return the rendered Markdown answer for backward-compatible callers."""

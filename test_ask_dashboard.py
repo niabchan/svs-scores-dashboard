@@ -32,97 +32,125 @@ def ask(question, data=None, selected=None, known=None):
     )
     assert isinstance(answer, dict)
     assert answer["kind"] == "dashboard_answer"
-    rendered = render_dashboard_answer(answer)
-    assert isinstance(rendered, str)
-    assert rendered
-    return rendered
+    return answer
 
 
 def test_suggested_net_vs_positive_question():
-    text = ask(QUESTION_NET_VS_POSITIVE)
-    assert "ranks first in total net score" in text
-    assert "positive contribution" in text
+    answer = ask(QUESTION_NET_VS_POSITIVE)
+    assert answer["intent"] == "net_vs_positive_ranking"
+    assert answer["status"] == "ok"
+    assert answer["metrics"]["top_net_alliance"] == "AAA"
+    assert answer["metrics"]["top_net_score"] == 600
 
 
 def test_suggested_exclusion_impact_question():
-    text = ask(QUESTION_EXCLUSION_IMPACT, selected=["A1", "B1", "C1"])
-    assert "Excluded:" in text
-    assert "A2" in text and "B2" in text
+    answer = ask(QUESTION_EXCLUSION_IMPACT, selected=["A1", "B1", "C1"])
+    assert answer["intent"] == "player_exclusion_impact"
+    assert answer["parameters"]["excluded_players"] == ["A2", "B2"]
+    assert answer["metrics"]["before"]["net_score"] == 1500
+    assert answer["metrics"]["after"]["net_score"] == 2600
+    assert answer["metrics"]["changes"]["net_score"] == 1100
 
 
 def test_suggested_negative_percentage_question():
-    text = ask(QUESTION_NEGATIVE_PERCENTAGE, selected=["A1", "B1", "C1"])
-    assert "negative share" in text.casefold()
-    assert "Negative percentage" in text
+    answer = ask(QUESTION_NEGATIVE_PERCENTAGE, selected=["A1", "B1", "C1"])
+    assert answer["intent"] == "negative_share_change"
+    assert answer["metrics"]["before"]["negative"] == 1100
+    assert answer["metrics"]["after"]["negative"] == 0
+    assert answer["metrics"]["excluded_player_count"] == 2
 
 
 def test_suggested_top_contributors_question():
-    text = ask(QUESTION_TOP_CONTRIBUTORS)
-    assert "Players are ranked by" in text
-    assert "**AAA**" in text and "**BBB**" in text
+    answer = ask(QUESTION_TOP_CONTRIBUTORS)
+    assert answer["intent"] == "top_contributors"
+    assert answer["metrics"]["alliance_count"] == 3
+    assert [group["alliance"] for group in answer["rankings"]["alliances"]] == ["AAA", "BBB", "CCC"]
 
 
 def test_custom_total_net_without_named_alliance():
-    text = ask("What is the total net score without BBB?")
-    assert "excluding **BBB** changes total net score" in text
-    assert "Score gained" in text
+    answer = ask("What is the total net score without BBB?")
+    assert answer["intent"] == "alliance_exclusion_total_net"
+    assert answer["parameters"]["recognized_alliances"] == ["BBB"]
+    assert answer["metrics"]["before_net_score"] == 1500
+    assert answer["metrics"]["after_net_score"] == 1100
+    assert answer["metrics"]["net_score_change"] == -400
+    assert answer["metrics"]["excluded_score_gained"] == 1200
+    assert answer["metrics"]["excluded_score_lost"] == 800
+    assert answer["metrics"]["excluded_net_score"] == 400
 
 
 def test_custom_top_contributors_for_named_alliance():
-    text = ask("Who contributed most in AAA?")
-    assert "**AAA**" in text
-    assert "**BBB**" not in text
+    answer = ask("Who contributed most in AAA?")
+    assert answer["intent"] == "top_contributors"
+    assert answer["parameters"]["alliance_names"] == ["AAA"]
+    assert [group["alliance"] for group in answer["rankings"]["alliances"]] == ["AAA"]
 
 
 def test_custom_selected_player_exclusion_pattern():
-    text = ask("How did excluding selected players change the result?", selected=["A1", "B1", "C1"])
-    assert "After the current exclusions" in text
+    answer = ask("How did excluding selected players change the result?", selected=["A1", "B1", "C1"])
+    assert answer["intent"] == "player_exclusion_impact"
+    assert answer["metrics"]["excluded_player_count"] == 2
 
 
 def test_custom_negative_share_pattern():
-    text = ask("Why did the negative share rise?", selected=["A1", "A2", "B2", "C1"])
-    assert "Negative percentage" in text
+    answer = ask("Why did the negative share rise?", selected=["A1", "A2", "B2", "C1"])
+    assert answer["intent"] == "negative_share_change"
+    assert answer["metrics"]["excluded_players"] == ["B1"]
 
 
 def test_custom_ranking_pattern():
-    text = ask("Why is the net-score leader not first in positive contribution?")
-    assert "total net score" in text
+    answer = ask("Why is the net-score leader not first in positive contribution?")
+    assert answer["intent"] == "net_vs_positive_ranking"
+    assert answer["rankings"]["alliances"]
 
 
 def test_empty_filters():
-    text = ask(QUESTION_TOP_CONTRIBUTORS, data=sample_data().iloc[0:0])
-    assert "There is no player score data" in text
+    answer = ask(QUESTION_TOP_CONTRIBUTORS, data=sample_data().iloc[0:0])
+    assert answer["status"] == "guidance"
+    assert answer["guidance_code"] == "empty_player_scope"
 
 
 def test_one_alliance_scope():
-    text = ask(QUESTION_NET_VS_POSITIVE, data=sample_data()[sample_data()["alliance"] == "AAA"])
-    assert "needs at least two alliances" in text
+    answer = ask(QUESTION_NET_VS_POSITIVE, data=sample_data()[sample_data()["alliance"] == "AAA"])
+    assert answer["guidance_code"] == "requires_multiple_alliances"
+    assert answer["metrics"]["alliance_count"] == 1
 
 
 def test_missing_positive_status():
     data = sample_data()[sample_data()["net_status"] == "Negative"]
-    text = ask(QUESTION_NEGATIVE_PERCENTAGE, data=data)
-    assert "does not include both Positive and Negative" in text
+    answer = ask(QUESTION_NEGATIVE_PERCENTAGE, data=data)
+    assert answer["guidance_code"] == "requires_positive_and_negative_status"
 
 
 def test_missing_negative_status():
     data = sample_data()[sample_data()["net_status"] == "Positive"]
-    text = ask(QUESTION_NET_VS_POSITIVE, data=data)
-    assert "does not include both Positive and Negative" in text
+    answer = ask(QUESTION_NET_VS_POSITIVE, data=data)
+    assert answer["guidance_code"] == "requires_positive_and_negative_status"
 
 
 def test_unknown_alliance_name():
-    text = ask("What is the total net score without ZZZ?", known=["AAA", "BBB", "CCC", "ZZZ"])
-    assert "**ZZZ** is not included" in text
+    answer = ask("What is the total net score without ZZZ?", known=["AAA", "BBB", "CCC", "ZZZ"])
+    assert answer["guidance_code"] == "alliance_outside_scope"
+    assert answer["parameters"]["outside_scope_alliances"] == ["ZZZ"]
 
 
 def test_multiple_excluded_alliances():
-    text = ask("What is the total net score without AAA and BBB?")
-    assert "excluding **AAA**, **BBB**" in text
-    assert "Players remaining" in text
+    answer = ask("What is the total net score without AAA and BBB?")
+    assert answer["parameters"]["recognized_alliances"] == ["AAA", "BBB"]
+    assert answer["metrics"]["after_net_score"] == 500
+    rendered = render_dashboard_answer(answer)
+    assert "excluding **AAA**, **BBB**" in rendered
 
 
 def test_no_excluded_players():
     players = sample_data()["player_name"].tolist()
-    text = ask(QUESTION_EXCLUSION_IMPACT, selected=players)
-    assert "No players are currently excluded" in text
+    answer = ask(QUESTION_EXCLUSION_IMPACT, selected=players)
+    assert answer["guidance_code"] == "no_excluded_players"
+    assert answer["metrics"]["excluded_player_count"] == 0
+
+
+def test_rendering_remains_available_for_user_answer():
+    answer = ask(QUESTION_TOP_CONTRIBUTORS)
+    rendered = render_dashboard_answer(answer)
+    assert "Players are ranked by" in rendered
+    assert "**AAA**" in rendered and "**BBB**" in rendered
