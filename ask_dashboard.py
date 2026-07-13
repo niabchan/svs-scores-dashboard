@@ -382,14 +382,14 @@ def calculate_dashboard_answer(question, data, svs_period=None, selected_player_
         )
         if has_exclusion_term and mentioned_alliances and any(term in normalized_question for term in ["alliance", "net", "score", "total", "change"]):
             result = calculate_total_net_excluding_alliances(data, mentioned_alliances, svs_period)
+        elif asks_about_player_exclusion and asks_about_exclusion_effect:
+            result = calculate_exclusion_impact(data, selected_player_names, svs_period)
         elif has_exclusion_term and ("net score" in normalized_question or "total net" in normalized_question) and not mentioned_alliances:
             result = _base_result("alliance_exclusion_total_net", "guidance", svs_period, "missing_alliance_name", parameters={"available_alliances": list(map(str, known_alliance_names))})
         elif asks_about_net_leader and asks_about_positive_rank:
             result = calculate_net_vs_positive_ranking(data, svs_period)
         elif asks_general_net_leader:
             result = calculate_net_score_leader_summary(data, svs_period)
-        elif asks_about_player_exclusion and asks_about_exclusion_effect:
-            result = calculate_exclusion_impact(data, selected_player_names, svs_period)
         elif asks_about_negative_share:
             result = calculate_negative_percentage_change(data, selected_player_names, svs_period)
         elif asks_about_contributors and ("alliance" in normalized_question or mentioned_alliances):

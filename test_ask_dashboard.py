@@ -145,6 +145,30 @@ def test_player_exclusion_nearby_effect_variants_route():
         assert answer["intent"] == "player_exclusion_impact"
 
 
+def test_player_exclusion_net_score_questions_precede_missing_alliance_guidance():
+    questions = [
+        "How did player exclusions affect the net score?",
+        "Player exclusions affected net score?",
+    ]
+    for question in questions:
+        answer = ask(question, selected=["A1", "B1", "C1"])
+        assert answer["intent"] == "player_exclusion_impact"
+        assert answer["guidance_code"] is None
+
+
+def test_alliance_exclusion_missing_name_still_routes_to_guidance():
+    answer = ask("What is the total net score without an alliance?")
+    assert answer["intent"] == "alliance_exclusion_total_net"
+    assert answer["guidance_code"] == "missing_alliance_name"
+
+
+def test_named_alliance_exclusion_still_routes_to_total_net():
+    data = sample_data().replace({"BBB": "TDA"})
+    answer = ask("What is the total net score without TDA?", data=data)
+    assert answer["intent"] == "alliance_exclusion_total_net"
+    assert answer["parameters"]["recognized_alliances"] == ["TDA"]
+
+
 def test_negative_share_lower_question_routes_and_reports_data_direction():
     answer = ask("Why is the negative percentage lower now?", selected=["A1", "A2", "B2", "C1"])
     assert answer["intent"] == "negative_share_change"
