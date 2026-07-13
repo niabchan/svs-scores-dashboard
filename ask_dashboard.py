@@ -26,11 +26,13 @@ SUGGESTED_QUESTIONS = [
     QUESTION_CUSTOM,
 ]
 
-CONTRIBUTOR_TERMS = {"contributor", "contributors", "contribution", "contributed", "contributing", "contribut", "best", "top", "most", "highest net"}
+CONTRIBUTOR_CONTEXT_TERMS = {"contributor", "contributors", "contribution", "contributed", "contributing", "contribut", "player", "players", "who"}
+CONTRIBUTOR_RANKING_TERMS = {"best", "top", "most"}
 EXCLUSION_TERMS = {"exclude", "excluded", "excluding", "exclusion", "exclusions", "without", "remove", "removed", "removing", "except"}
 EXCLUSION_EFFECT_TERMS = {"change", "changed", "impact", "happen", "happened", "result", "affect", "affected", "effect", "effects"}
 NEGATIVE_CHANGE_TERMS = {"increase", "increased", "rise", "rose", "higher", "lower", "decrease", "decreased", "decline", "declined", "fall", "fell", "drop", "dropped", "reduce", "reduced", "change", "changed"}
-NET_LEADER_TERMS = {"lead", "leads", "leader", "leading", "top net", "highest net", "first in net", "net score winner"}
+NET_LEADER_WORD_TERMS = {"lead", "leads", "leader", "leading", "winner"}
+NET_LEADER_PHRASE_TERMS = {"top net", "highest net", "first in net", "net score winner"}
 POSITIVE_RANK_TERMS = {"positive contribution", "positive rank", "positive ranking", "first in positive", "top in positive"}
 
 
@@ -41,6 +43,10 @@ def _has_any_word(text, terms):
 
 def _has_any_phrase(text, terms):
     return any(term in text for term in terms)
+
+
+def _has_any_word_or_phrase(text, word_terms, phrase_terms):
+    return _has_any_word(text, word_terms) or _has_any_phrase(text, phrase_terms)
 
 
 
@@ -364,10 +370,16 @@ def calculate_dashboard_answer(question, data, svs_period=None, selected_player_
             or ("positive" in normalized_question and _has_any_word(normalized_question, {"rank", "ranking", "first", "top"}))
         )
         asks_about_net_leader = "net" in normalized_question and (
-            "alliance" in normalized_question or _has_any_word(normalized_question, NET_LEADER_TERMS)
+            "alliance" in normalized_question
+            or _has_any_word_or_phrase(normalized_question, NET_LEADER_WORD_TERMS, NET_LEADER_PHRASE_TERMS)
         )
         asks_general_net_leader = asks_about_net_leader and not asks_about_positive_rank
-        asks_about_contributors = _has_any_phrase(normalized_question, CONTRIBUTOR_TERMS)
+        has_contributor_context = _has_any_phrase(normalized_question, CONTRIBUTOR_CONTEXT_TERMS)
+        has_contributor_ranking = _has_any_word(normalized_question, CONTRIBUTOR_RANKING_TERMS)
+        asks_about_contributors = has_contributor_context and (
+            has_contributor_ranking
+            or _has_any_phrase(normalized_question, {"contribut", "player"})
+        )
         if has_exclusion_term and mentioned_alliances and any(term in normalized_question for term in ["alliance", "net", "score", "total", "change"]):
             result = calculate_total_net_excluding_alliances(data, mentioned_alliances, svs_period)
         elif has_exclusion_term and ("net score" in normalized_question or "total net" in normalized_question) and not mentioned_alliances:

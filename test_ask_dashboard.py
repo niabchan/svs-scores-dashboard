@@ -120,6 +120,7 @@ def test_named_alliance_contributor_nearby_variants():
         "show TOP contribution in sns!",
         "Most contributors for SnS?",
         "Best contribution, SnS",
+        "Who contributed most in SnS?",
     ]
     for question in questions:
         answer = ask(question, data=data)
@@ -179,6 +180,28 @@ def test_general_net_score_leader_summary():
     assert "premise does not match" not in rendered.casefold()
     assert "leads total net score" in rendered
     assert "Positive-contribution rank" in rendered
+
+
+def test_multi_word_net_leader_terms_route_to_summary():
+    questions = [
+        "Who has the top net score?",
+        "Which alliance has the highest net score?",
+        "Who is the net score winner?",
+    ]
+    for question in questions:
+        answer = ask(question)
+        assert answer["intent"] == "net_score_leader_summary"
+
+
+def test_ambiguous_alliance_score_questions_do_not_route_to_top_contributors():
+    data = sample_data().replace({"AAA": "SnS"})
+    questions = [
+        "What is the best score in SnS?",
+        "What is the top net score in SnS?",
+    ]
+    for question in questions:
+        answer = ask(question, data=data)
+        assert answer["intent"] != "top_contributors"
 
 
 def test_general_net_score_leader_tie_is_explicit():
