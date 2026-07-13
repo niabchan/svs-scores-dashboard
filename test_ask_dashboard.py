@@ -106,6 +106,154 @@ def test_custom_ranking_pattern():
     assert answer["rankings"]["alliances"]
 
 
+def test_named_alliance_contributors_without_who_or_player_terms():
+    data = sample_data().replace({"AAA": "SnS"})
+    answer = ask("Show the best contributors in SnS.", data=data)
+    assert answer["intent"] == "top_contributors"
+    assert answer["parameters"]["alliance_names"] == ["SnS"]
+    assert [group["alliance"] for group in answer["rankings"]["alliances"]] == ["SnS"]
+
+
+def test_named_alliance_contributor_nearby_variants():
+    data = sample_data().replace({"AAA": "SnS"})
+    questions = [
+        "show TOP contribution in sns!",
+        "Most contributors for SnS?",
+        "Best contribution, SnS",
+        "Who contributed most in SnS?",
+    ]
+    for question in questions:
+        answer = ask(question, data=data)
+        assert answer["intent"] == "top_contributors"
+        assert answer["parameters"]["matched_alliances"] == ["SnS"]
+
+
+def test_player_exclusion_noun_and_effect_terms_route():
+    answer = ask("How did player exclusions affect the net score?", selected=["A1", "B1", "C1"])
+    assert answer["intent"] == "player_exclusion_impact"
+    assert answer["metrics"]["excluded_player_count"] == 2
+
+
+def test_player_exclusion_nearby_effect_variants_route():
+    questions = [
+        "Did player exclusion effect the result?",
+        "Player exclusions affected net score?",
+        "How did selected exclusions change the result?",
+    ]
+    for question in questions:
+        answer = ask(question, selected=["A1", "B1", "C1"])
+        assert answer["intent"] == "player_exclusion_impact"
+
+
+def test_player_exclusion_net_score_questions_precede_missing_alliance_guidance():
+    questions = [
+        "How did player exclusions affect the net score?",
+        "Player exclusions affected net score?",
+    ]
+    for question in questions:
+        answer = ask(question, selected=["A1", "B1", "C1"])
+        assert answer["intent"] == "player_exclusion_impact"
+        assert answer["guidance_code"] is None
+
+
+def test_alliance_exclusion_missing_name_still_routes_to_guidance():
+    answer = ask("What is the total net score without an alliance?")
+    assert answer["intent"] == "alliance_exclusion_total_net"
+    assert answer["guidance_code"] == "missing_alliance_name"
+
+
+def test_named_alliance_exclusion_still_routes_to_total_net():
+    data = sample_data().replace({"BBB": "TDA"})
+    answer = ask("What is the total net score without TDA?", data=data)
+    assert answer["intent"] == "alliance_exclusion_total_net"
+    assert answer["parameters"]["recognized_alliances"] == ["TDA"]
+
+
+def test_negative_share_lower_question_routes_and_reports_data_direction():
+    answer = ask("Why is the negative percentage lower now?", selected=["A1", "A2", "B2", "C1"])
+    assert answer["intent"] == "negative_share_change"
+    assert answer["metrics"]["share_change"] > 0
+    rendered = render_dashboard_answer(answer)
+    assert "increased by" in rendered
+    assert "lower" not in rendered.casefold()
+
+
+def test_negative_share_downward_and_neutral_vocabulary_variants_route():
+    questions = [
+        "Why did the negative percent decrease?",
+        "Why did the negative share declined?",
+        "Why did the negative ratio fall?",
+        "Why did negative percentage dropped?",
+        "Why did negative percentage reduce?",
+        "Why did the negative percentage change?",
+    ]
+    for question in questions:
+        answer = ask(question, selected=["A1", "B1", "C1"])
+        assert answer["intent"] == "negative_share_change"
+
+
+def test_general_net_score_leader_summary():
+    answer = ask("Which alliance leads net score, and why?")
+    assert answer["intent"] == "net_score_leader_summary"
+    assert answer["metrics"]["top_net_alliance"] == "AAA"
+    assert answer["metrics"]["top_net_score"] == 600
+    assert answer["metrics"]["top_positive_contribution"] == 900
+    assert answer["metrics"]["top_negative_impact"] == 300
+    assert answer["metrics"]["top_positive_rank"] == 2
+    rendered = render_dashboard_answer(answer)
+    assert "premise does not match" not in rendered.casefold()
+    assert "leads total net score" in rendered
+    assert "Positive-contribution rank" in rendered
+
+
+def test_multi_word_net_leader_terms_route_to_summary():
+    questions = [
+        "Who has the top net score?",
+        "Which alliance has the highest net score?",
+        "Who is the net score winner?",
+    ]
+    for question in questions:
+        answer = ask(question)
+        assert answer["intent"] == "net_score_leader_summary"
+
+
+def test_ambiguous_alliance_score_questions_do_not_route_to_top_contributors():
+    data = sample_data().replace({"AAA": "SnS"})
+    questions = [
+        "What is the best score in SnS?",
+        "What is the top net score in SnS?",
+    ]
+    for question in questions:
+        answer = ask(question, data=data)
+        assert answer["intent"] != "top_contributors"
+
+
+def test_general_net_score_leader_tie_is_explicit():
+    data = pd.DataFrame(
+        [
+            {"alliance": "AAA", "player_name": "A1", "score_gained": 1000, "score_lost": 0, "net_score": 1000, "net_status": "Positive"},
+            {"alliance": "BBB", "player_name": "B1", "score_gained": 1200, "score_lost": 0, "net_score": 1200, "net_status": "Positive"},
+            {"alliance": "BBB", "player_name": "B2", "score_gained": 0, "score_lost": 200, "net_score": -200, "net_status": "Negative"},
+        ]
+    )
+    answer = ask("Which alliance leads net score, and why?", data=data)
+    assert answer["intent"] == "net_score_leader_summary"
+    assert answer["metrics"]["leader_count"] == 2
+    rendered = render_dashboard_answer(answer)
+    assert "tied for first" in rendered
+
+
+def test_case_and_punctuation_variations_route():
+    answer = ask("WHICH ALLIANCE LEADS NET SCORE?!")
+    assert answer["intent"] == "net_score_leader_summary"
+
+
+def test_unsupported_question_still_guidance():
+    answer = ask("Predict the next SVS result.")
+    assert answer["intent"] == "unsupported_question"
+    assert answer["guidance_code"] == "unsupported_question"
+
+
 def test_empty_filters():
     answer = ask(QUESTION_TOP_CONTRIBUTORS, data=sample_data().iloc[0:0])
     assert answer["status"] == "guidance"
@@ -163,6 +311,19 @@ def test_structured_answer_is_json_serializable():
     answer = ask("What is the total net score without BBB?")
     encoded = json.dumps(answer)
     assert '"intent": "alliance_exclusion_total_net"' in encoded
+
+
+def test_new_structured_answers_are_json_serializable():
+    data = sample_data().replace({"AAA": "SnS"})
+    questions = [
+        "Show the best contributors in SnS.",
+        "How did player exclusions affect the net score?",
+        "Why is the negative percentage lower now?",
+        "Which alliance leads net score, and why?",
+    ]
+    for question in questions:
+        answer = ask(question, data=data, selected=["A1", "B1", "C1"])
+        json.dumps(answer)
 
 
 def test_rendering_works_after_original_dataframe_is_discarded():
