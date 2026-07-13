@@ -26,6 +26,23 @@ SUGGESTED_QUESTIONS = [
     QUESTION_CUSTOM,
 ]
 
+CONTRIBUTOR_TERMS = {"contributor", "contributors", "contribution", "contributed", "contributing", "contribut", "best", "top", "most", "highest net"}
+EXCLUSION_TERMS = {"exclude", "excluded", "excluding", "exclusion", "exclusions", "without", "remove", "removed", "removing", "except"}
+EXCLUSION_EFFECT_TERMS = {"change", "changed", "impact", "happen", "happened", "result", "affect", "affected", "effect", "effects"}
+NEGATIVE_CHANGE_TERMS = {"increase", "increased", "rise", "rose", "higher", "lower", "decrease", "decreased", "decline", "declined", "fall", "fell", "drop", "dropped", "reduce", "reduced", "change", "changed"}
+NET_LEADER_TERMS = {"lead", "leads", "leader", "leading", "top net", "highest net", "first in net", "net score winner"}
+POSITIVE_RANK_TERMS = {"positive contribution", "positive rank", "positive ranking", "first in positive", "top in positive"}
+
+
+def _has_any_word(text, terms):
+    words = set(text.split())
+    return any(term in words for term in terms)
+
+
+def _has_any_phrase(text, terms):
+    return any(term in text for term in terms)
+
+
 
 def format_score(value):
     """Format dashboard scores consistently for narrative answers."""
@@ -193,6 +210,45 @@ def calculate_net_vs_positive_ranking(data, svs_period=None):
     return _base_result(intent, "ok", svs_period, metrics=metrics, rankings=rankings)
 
 
+def calculate_net_score_leader_summary(data, svs_period=None):
+    intent = "net_score_leader_summary"
+    missing = {"alliance", "net_score"}.difference(data.columns)
+    if missing:
+        return _missing_columns_result(intent, missing, svs_period)
+    df = data[["alliance", "net_score"]].copy()
+    df["net_score"] = pd.to_numeric(df["net_score"], errors="coerce")
+    df = df.dropna(subset=["alliance", "net_score"])
+    if df.empty:
+        return _base_result(intent, "guidance", svs_period, "empty_score_scope")
+    analysis = df.groupby("alliance", as_index=False).agg(
+        total_net_score=("net_score", "sum"),
+        positive_contribution=("net_score", lambda scores: scores[scores > 0].sum()),
+        negative_impact=("net_score", lambda scores: scores[scores < 0].abs().sum()),
+    )
+    analysis["net_rank"] = analysis["total_net_score"].rank(method="min", ascending=False).astype(int)
+    analysis["positive_rank"] = analysis["positive_contribution"].rank(method="min", ascending=False).astype(int)
+    records = analysis.sort_values(["net_rank", "positive_rank", "alliance"]).to_dict("records")
+    leaders = analysis[analysis["net_rank"] == 1].sort_values("alliance")
+    leader_records = leaders.to_dict("records")
+    metrics = {
+        "alliance_count": df["alliance"].nunique(),
+        "leader_count": len(leader_records),
+        "top_net_score": leaders.iloc[0]["total_net_score"],
+        "leaders": leader_records,
+    }
+    if len(leader_records) == 1:
+        leader = leader_records[0]
+        metrics.update(
+            {
+                "top_net_alliance": str(leader["alliance"]),
+                "top_positive_contribution": leader["positive_contribution"],
+                "top_negative_impact": leader["negative_impact"],
+                "top_positive_rank": int(leader["positive_rank"]),
+            }
+        )
+    return _base_result(intent, "ok", svs_period, metrics=metrics, rankings={"alliances": records})
+
+
 def _player_scope(data, include_status=False):
     cols = ["player_name", "score_gained", "score_lost", "net_score"] + (["net_status"] if include_status and "net_status" in data.columns else [])
     return _numeric_scope(data, cols).dropna(subset=["player_name", "net_score"])
@@ -295,19 +351,36 @@ def calculate_dashboard_answer(question, data, svs_period=None, selected_player_
     elif question == QUESTION_TOP_CONTRIBUTORS:
         result = calculate_top_contributors(data, svs_period)
     else:
-        exclusion_terms = {"exclude", "excluded", "excluding", "without", "remove", "removed", "removing", "except"}
-        has_exclusion_term = any(term in normalized_question.split() for term in exclusion_terms)
+        has_exclusion_term = _has_any_word(normalized_question, EXCLUSION_TERMS)
+        asks_about_player_exclusion = has_exclusion_term and ("player" in normalized_question or "selected" in normalized_question)
+        asks_about_exclusion_effect = _has_any_word(normalized_question, EXCLUSION_EFFECT_TERMS)
+        asks_about_negative_share = (
+            "negative" in normalized_question
+            and _has_any_phrase(normalized_question, {"percentage", "percent", "share", "ratio"})
+            and _has_any_word(normalized_question, NEGATIVE_CHANGE_TERMS)
+        )
+        asks_about_positive_rank = (
+            _has_any_phrase(normalized_question, POSITIVE_RANK_TERMS)
+            or ("positive" in normalized_question and _has_any_word(normalized_question, {"rank", "ranking", "first", "top"}))
+        )
+        asks_about_net_leader = "net" in normalized_question and (
+            "alliance" in normalized_question or _has_any_word(normalized_question, NET_LEADER_TERMS)
+        )
+        asks_general_net_leader = asks_about_net_leader and not asks_about_positive_rank
+        asks_about_contributors = _has_any_phrase(normalized_question, CONTRIBUTOR_TERMS)
         if has_exclusion_term and mentioned_alliances and any(term in normalized_question for term in ["alliance", "net", "score", "total", "change"]):
             result = calculate_total_net_excluding_alliances(data, mentioned_alliances, svs_period)
         elif has_exclusion_term and ("net score" in normalized_question or "total net" in normalized_question) and not mentioned_alliances:
             result = _base_result("alliance_exclusion_total_net", "guidance", svs_period, "missing_alliance_name", parameters={"available_alliances": list(map(str, known_alliance_names))})
-        elif ("net" in normalized_question and any(term in normalized_question for term in ["alliance", "leader", "top net", "highest net", "first in net", "net score winner"]) and (any(term in normalized_question for term in ["positive contribution", "positive rank", "positive ranking", "first in positive", "top in positive"]) or ("positive" in normalized_question and any(term in normalized_question for term in ["rank", "ranking", "first", "top"])))):
+        elif asks_about_net_leader and asks_about_positive_rank:
             result = calculate_net_vs_positive_ranking(data, svs_period)
-        elif has_exclusion_term and ("player" in normalized_question or "selected" in normalized_question) and any(term in normalized_question for term in ["change", "impact", "happen", "result"]):
+        elif asks_general_net_leader:
+            result = calculate_net_score_leader_summary(data, svs_period)
+        elif asks_about_player_exclusion and asks_about_exclusion_effect:
             result = calculate_exclusion_impact(data, selected_player_names, svs_period)
-        elif "negative" in normalized_question and any(term in normalized_question for term in ["percentage", "percent", "share", "ratio"]) and any(term in normalized_question for term in ["increase", "increased", "rise", "rose", "change"]):
+        elif asks_about_negative_share:
             result = calculate_negative_percentage_change(data, selected_player_names, svs_period)
-        elif any(term in normalized_question for term in ["player", "who"]) and any(term in normalized_question for term in ["contribut", "top", "best", "highest net", "most"]) and ("alliance" in normalized_question or mentioned_alliances):
+        elif asks_about_contributors and ("alliance" in normalized_question or mentioned_alliances):
             result = calculate_top_contributors(data, svs_period, alliance_names=mentioned_alliances or None)
         else:
             result = _base_result("unsupported_question", "guidance", svs_period, "unsupported_question")
@@ -406,6 +479,39 @@ def _render_net_vs_positive(answer):
         f"Under the current sidebar filters{_period_text(answer.get('period'))}, **{top['alliance']}** ranks first in total net score with **{format_score(top['total_net_score'])}**, while it ranks {rank_statement} in positive contribution with **{format_score(top['positive_net_score'])}**.\n\n"
         f"**{leader['alliance']}** leads positive contribution with **{format_score(leader['positive_net_score'])}**, which is **{format_score(metrics['positive_gap'])}** more than {top['alliance']}. However, {leader['alliance']}'s negative impact is **{format_score(leader['negative_impact'])}**, compared with **{format_score(top['negative_impact'])}** for {top['alliance']}. That gives {top['alliance']} a **{format_score(metrics['negative_advantage'])}** advantage from losing fewer points.\n\n"
         f"The lower negative impact offsets the smaller positive contribution, leaving {top['alliance']} ahead of {leader['alliance']} by **{format_score(metrics['net_lead'])}** in total net score. Here, positive contribution is the sum of positive player net scores, and total net score equals positive contribution minus negative impact."
+    )
+
+
+def _render_net_score_leader_summary(answer):
+    guidance = _status_message(answer)
+    if guidance:
+        return guidance
+    metrics = answer["metrics"]
+    period_text = _period_text(answer.get("period"))
+    leaders = metrics.get("leaders", [])
+    if metrics.get("leader_count", 0) > 1:
+        names = ", ".join(f"**{leader['alliance']}**" for leader in leaders)
+        details = "\n".join(
+            f"- **{leader['alliance']}**: total net **{format_signed_score(leader['total_net_score'])}**, "
+            f"positive contribution **{format_score(leader['positive_contribution'])}**, "
+            f"negative impact **{format_score(leader['negative_impact'])}**, "
+            f"positive-contribution rank **#{leader['positive_rank']}**"
+            for leader in leaders
+        )
+        return (
+            f"Under the current sidebar filters{period_text}, total net score is tied for first between {names} "
+            f"at **{format_signed_score(metrics['top_net_score'])}**.\n\n"
+            f"{details}\n\n"
+            "They lead because their positive contribution minus negative impact produces the highest total net score in the current filter scope."
+        )
+    leader = leaders[0]
+    return (
+        f"Under the current sidebar filters{period_text}, **{leader['alliance']}** leads total net score with "
+        f"**{format_signed_score(leader['total_net_score'])}**.\n\n"
+        f"- **Positive contribution:** {format_score(leader['positive_contribution'])}\n"
+        f"- **Negative impact:** {format_score(leader['negative_impact'])}\n"
+        f"- **Positive-contribution rank:** #{leader['positive_rank']}\n\n"
+        f"It leads because its positive contribution minus negative impact produces the highest total net score under the current filters."
     )
 
 
@@ -516,6 +622,7 @@ def render_dashboard_answer(answer):
         "player_exclusion_impact": _render_exclusion_impact,
         "negative_share_change": _render_negative_share,
         "top_contributors": _render_top_contributors,
+        "net_score_leader_summary": _render_net_score_leader_summary,
     }
     renderer = renderers.get(answer.get("intent"))
     if renderer:
