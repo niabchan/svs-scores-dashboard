@@ -1,6 +1,7 @@
 import json
 
 import pandas as pd
+import pytest
 
 from ask_dashboard import (
     QUESTION_EXCLUSION_IMPACT,
@@ -191,6 +192,142 @@ def test_negative_share_downward_and_neutral_vocabulary_variants_route():
         answer = ask(question, selected=["A1", "B1", "C1"])
         assert answer["intent"] == "negative_share_change"
 
+
+
+def negative_share_direction_data():
+    return pd.DataFrame(
+        [
+            {"alliance": "AAA", "player_name": "P1", "score_gained": 900, "score_lost": 0, "net_score": 900, "net_status": "Positive"},
+            {"alliance": "AAA", "player_name": "P2", "score_gained": 600, "score_lost": 0, "net_score": 600, "net_status": "Positive"},
+            {"alliance": "BBB", "player_name": "N1", "score_gained": 0, "score_lost": 1100, "net_score": -1100, "net_status": "Negative"},
+            {"alliance": "BBB", "player_name": "N2", "score_gained": 0, "score_lost": 300, "net_score": -300, "net_status": "Negative"},
+        ]
+    )
+
+
+def unchanged_negative_share_data():
+    return pd.DataFrame(
+        [
+            {"alliance": "AAA", "player_name": "P1", "score_gained": 100, "score_lost": 0, "net_score": 100, "net_status": "Positive"},
+            {"alliance": "AAA", "player_name": "P2", "score_gained": 100, "score_lost": 0, "net_score": 100, "net_status": "Positive"},
+            {"alliance": "BBB", "player_name": "N1", "score_gained": 0, "score_lost": 100, "net_score": -100, "net_status": "Negative"},
+            {"alliance": "BBB", "player_name": "N2", "score_gained": 0, "score_lost": 100, "net_score": -100, "net_status": "Negative"},
+        ]
+    )
+
+
+def test_negative_share_downward_question_actual_decrease_no_premise_mismatch():
+    answer = ask(
+        "Why is the negative percentage lower now?",
+        data=negative_share_direction_data(),
+        selected=["P1", "P2", "N2"],
+    )
+    rendered = render_dashboard_answer(answer)
+    assert answer["parameters"]["requested_direction"] == "decrease"
+    assert answer["metrics"]["share_change"] < -0.05
+    assert "decreased by" in rendered
+    assert "premise does not match" not in rendered.casefold()
+
+
+def test_negative_share_downward_question_actual_increase_premise_mismatch():
+    answer = ask(
+        "Why is the negative percentage lower now?",
+        data=negative_share_direction_data(),
+        selected=["P2", "N1", "N2"],
+    )
+    rendered = render_dashboard_answer(answer)
+    assert answer["parameters"]["requested_direction"] == "decrease"
+    assert answer["metrics"]["share_change"] > 0.05
+    assert "premise does not match" in rendered.casefold()
+    assert "increased by" in rendered
+
+
+def test_negative_share_upward_question_actual_increase_no_premise_mismatch():
+    answer = ask(
+        "Why did the negative percentage increase?",
+        data=negative_share_direction_data(),
+        selected=["P2", "N1", "N2"],
+    )
+    rendered = render_dashboard_answer(answer)
+    assert answer["parameters"]["requested_direction"] == "increase"
+    assert answer["metrics"]["share_change"] > 0.05
+    assert "increased by" in rendered
+    assert "premise does not match" not in rendered.casefold()
+
+
+def test_negative_share_upward_question_actual_decrease_premise_mismatch():
+    answer = ask(
+        "Why did the negative percentage increase?",
+        data=negative_share_direction_data(),
+        selected=["P1", "P2", "N2"],
+    )
+    rendered = render_dashboard_answer(answer)
+    assert answer["parameters"]["requested_direction"] == "increase"
+    assert answer["metrics"]["share_change"] < -0.05
+    assert "premise does not match" in rendered.casefold()
+    assert "decreased by" in rendered
+
+
+def test_negative_share_neutral_change_question_actual_increase_no_premise_mismatch():
+    answer = ask(
+        "How did the negative percentage change?",
+        data=negative_share_direction_data(),
+        selected=["P2", "N1", "N2"],
+    )
+    rendered = render_dashboard_answer(answer)
+    assert answer["parameters"]["requested_direction"] == "neutral"
+    assert answer["metrics"]["share_change"] > 0.05
+    assert "premise does not match" not in rendered.casefold()
+
+
+def test_negative_share_neutral_change_question_actual_decrease_no_premise_mismatch():
+    answer = ask(
+        "How did the negative percentage change?",
+        data=negative_share_direction_data(),
+        selected=["P1", "P2", "N2"],
+    )
+    rendered = render_dashboard_answer(answer)
+    assert answer["parameters"]["requested_direction"] == "neutral"
+    assert answer["metrics"]["share_change"] < -0.05
+    assert "premise does not match" not in rendered.casefold()
+
+
+def test_negative_share_effectively_unchanged_asserted_direction_premise_mismatch():
+    for question, expected_direction in [
+        ("Why did the negative percentage increase?", "increase"),
+        ("Why is the negative percentage lower now?", "decrease"),
+    ]:
+        answer = ask(question, data=unchanged_negative_share_data(), selected=["P1", "N1"])
+        rendered = render_dashboard_answer(answer)
+        assert answer["parameters"]["requested_direction"] == expected_direction
+        assert abs(answer["metrics"]["share_change"]) <= 0.05
+        assert "premise does not match" in rendered.casefold()
+        assert "effectively unchanged" in rendered
+
+
+def test_negative_share_requested_direction_is_json_serializable():
+    answer = ask("Why is the negative percentage lower now?", selected=["A1", "B1", "C1"])
+    encoded = json.dumps(answer)
+    assert answer["parameters"]["requested_direction"] == "decrease"
+    assert '"requested_direction": "decrease"' in encoded
+
+
+def test_negative_share_matching_lower_now_regression_mentions_decrease_without_premise_mismatch():
+    data = pd.DataFrame(
+        [
+            {"alliance": "AAA", "player_name": "P keep", "score_gained": 322.7, "score_lost": 0, "net_score": 322.7, "net_status": "Positive"},
+            {"alliance": "AAA", "player_name": "P excluded", "score_gained": 90.3, "score_lost": 0, "net_score": 90.3, "net_status": "Positive"},
+            {"alliance": "BBB", "player_name": "N keep", "score_gained": 0, "score_lost": 377.3, "net_score": -377.3, "net_status": "Negative"},
+            {"alliance": "BBB", "player_name": "N excluded", "score_gained": 0, "score_lost": 209.7, "net_score": -209.7, "net_status": "Negative"},
+        ]
+    )
+    answer = ask("Why is the negative percentage lower now?", data=data, selected=["P keep", "N keep"])
+    rendered = render_dashboard_answer(answer)
+    assert answer["parameters"]["requested_direction"] == "decrease"
+    assert answer["metrics"]["before"]["negative_share"] == pytest.approx(58.7)
+    assert answer["metrics"]["after"]["negative_share"] == pytest.approx(53.9)
+    assert "decreased by" in rendered
+    assert "premise does not match" not in rendered.casefold()
 
 def test_general_net_score_leader_summary():
     answer = ask("Which alliance leads net score, and why?")

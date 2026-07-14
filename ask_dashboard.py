@@ -30,7 +30,10 @@ CONTRIBUTOR_CONTEXT_TERMS = {"contributor", "contributors", "contribution", "con
 CONTRIBUTOR_RANKING_TERMS = {"best", "top", "most"}
 EXCLUSION_TERMS = {"exclude", "excluded", "excluding", "exclusion", "exclusions", "without", "remove", "removed", "removing", "except"}
 EXCLUSION_EFFECT_TERMS = {"change", "changed", "impact", "happen", "happened", "result", "affect", "affected", "effect", "effects"}
-NEGATIVE_CHANGE_TERMS = {"increase", "increased", "rise", "rose", "higher", "lower", "decrease", "decreased", "decline", "declined", "fall", "fell", "drop", "dropped", "reduce", "reduced", "change", "changed"}
+NEGATIVE_INCREASE_TERMS = {"increase", "increased", "rise", "rose", "higher"}
+NEGATIVE_DECREASE_TERMS = {"lower", "decrease", "decreased", "decline", "declined", "fall", "fell", "drop", "dropped", "reduce", "reduced"}
+NEGATIVE_NEUTRAL_CHANGE_TERMS = {"change", "changed"}
+NEGATIVE_CHANGE_TERMS = NEGATIVE_INCREASE_TERMS | NEGATIVE_DECREASE_TERMS | NEGATIVE_NEUTRAL_CHANGE_TERMS
 NET_LEADER_WORD_TERMS = {"lead", "leads", "leader", "leading", "winner"}
 NET_LEADER_PHRASE_TERMS = {"top net", "highest net", "first in net", "net score winner"}
 POSITIVE_RANK_TERMS = {"positive contribution", "positive rank", "positive ranking", "first in positive", "top in positive"}
@@ -289,7 +292,27 @@ def calculate_exclusion_impact(data, selected_player_names=None, svs_period=None
     return _base_result(intent, "ok", svs_period, guidance_code=("no_excluded_players" if metrics["excluded_player_count"] == 0 else None), parameters={"selected_players": selected, "excluded_players": sorted(excluded_df["player_name"].dropna().unique().tolist())}, metrics=metrics)
 
 
-def calculate_negative_percentage_change(data, selected_player_names=None, svs_period=None):
+def classify_negative_share_requested_direction(question):
+    """Classify the direction asserted by a negative-share question."""
+    normalized = normalize_question_text(question)
+    if _has_any_word(normalized, NEGATIVE_INCREASE_TERMS):
+        return "increase"
+    if _has_any_word(normalized, NEGATIVE_DECREASE_TERMS):
+        return "decrease"
+    if _has_any_word(normalized, NEGATIVE_NEUTRAL_CHANGE_TERMS):
+        return "neutral"
+    return "unspecified"
+
+
+def _actual_share_direction(share_change):
+    if share_change > 0.05:
+        return "increase"
+    if share_change < -0.05:
+        return "decrease"
+    return "unchanged"
+
+
+def calculate_negative_percentage_change(data, selected_player_names=None, svs_period=None, requested_direction="unspecified"):
     intent = "negative_share_change"
     missing = {"player_name", "net_score"}.difference(data.columns)
     if missing:
@@ -309,7 +332,7 @@ def calculate_negative_percentage_change(data, selected_player_names=None, svs_p
     metrics = {"before": before, "after": after, "excluded_player_count": excluded_df["player_name"].nunique(), "excluded_players": sorted(excluded_df["player_name"].dropna().unique().tolist())}
     if before["negative_share"] is not None and after["negative_share"] is not None:
         metrics.update({"share_change": after["negative_share"] - before["negative_share"], "positive_removed": before["positive"] - after["positive"], "negative_removed": before["negative"] - after["negative"]})
-    return _base_result(intent, "ok", svs_period, guidance_code=("no_excluded_players" if metrics["excluded_player_count"] == 0 else None), parameters={"selected_players": selected, "excluded_players": metrics["excluded_players"]}, metrics=metrics)
+    return _base_result(intent, "ok", svs_period, guidance_code=("no_excluded_players" if metrics["excluded_player_count"] == 0 else None), parameters={"selected_players": selected, "excluded_players": metrics["excluded_players"], "requested_direction": requested_direction}, metrics=metrics)
 
 
 def calculate_top_contributors(data, svs_period=None, alliance_names=None):
@@ -353,7 +376,7 @@ def calculate_dashboard_answer(question, data, svs_period=None, selected_player_
     elif question == QUESTION_EXCLUSION_IMPACT:
         result = calculate_exclusion_impact(data, selected_player_names, svs_period)
     elif question == QUESTION_NEGATIVE_PERCENTAGE:
-        result = calculate_negative_percentage_change(data, selected_player_names, svs_period)
+        result = calculate_negative_percentage_change(data, selected_player_names, svs_period, "increase")
     elif question == QUESTION_TOP_CONTRIBUTORS:
         result = calculate_top_contributors(data, svs_period)
     else:
@@ -391,7 +414,8 @@ def calculate_dashboard_answer(question, data, svs_period=None, selected_player_
         elif asks_general_net_leader:
             result = calculate_net_score_leader_summary(data, svs_period)
         elif asks_about_negative_share:
-            result = calculate_negative_percentage_change(data, selected_player_names, svs_period)
+            requested_direction = classify_negative_share_requested_direction(question)
+            result = calculate_negative_percentage_change(data, selected_player_names, svs_period, requested_direction)
         elif asks_about_contributors and ("alliance" in normalized_question or mentioned_alliances):
             result = calculate_top_contributors(data, svs_period, alliance_names=mentioned_alliances or None)
         else:
@@ -576,18 +600,24 @@ def _render_negative_share(answer):
     if after.get("negative_share") is None:
         return f"After the current exclusions{period_text}, no score magnitude remains in the selected group, so an after-exclusion negative percentage cannot be calculated."
     share_change = m["share_change"]
+    actual_direction = _actual_share_direction(share_change)
+    requested_direction = answer.get("parameters", {}).get("requested_direction", "unspecified")
+    premise_mismatch = requested_direction in {"increase", "decrease"} and actual_direction != requested_direction
     positive_removed = m["positive_removed"]
     negative_removed = m["negative_removed"]
     positive_rate = positive_removed / before["positive"] * 100 if before["positive"] > 0 else 0
     negative_rate = negative_removed / before["negative"] * 100 if before["negative"] > 0 else 0
     if share_change > 0.05:
-        direction = f"The negative share **increased by {share_change:.1f} percentage points**, from **{before['negative_share']:.1f}%** to **{after['negative_share']:.1f}%**."
+        prefix = "The premise does not match the current selection: the negative share" if premise_mismatch else "The negative share"
+        direction = f"{prefix} **increased by {share_change:.1f} percentage points**, from **{before['negative_share']:.1f}%** to **{after['negative_share']:.1f}%**."
         reason = f"This happened because the exclusions removed a larger proportion of positive contribution than negative impact. Positive contribution fell by **{positive_rate:.1f}%**, while negative impact fell by **{negative_rate:.1f}%**. " + ("Although the raw negative impact also decreased, it became a larger share of the smaller remaining total." if negative_removed > 0 else "The raw negative impact did not increase; it stayed the same but became a larger share of the smaller remaining total.")
     elif share_change < -0.05:
-        direction = f"The premise does not match the current selection: the negative share **decreased by {abs(share_change):.1f} percentage points**, from **{before['negative_share']:.1f}%** to **{after['negative_share']:.1f}%**."
+        prefix = "The premise does not match the current selection: the negative share" if premise_mismatch else "The negative share"
+        direction = f"{prefix} **decreased by {abs(share_change):.1f} percentage points**, from **{before['negative_share']:.1f}%** to **{after['negative_share']:.1f}%**."
         reason = f"The exclusions removed a larger proportion of negative impact than positive contribution. Negative impact fell by **{negative_rate:.1f}%**, while positive contribution fell by **{positive_rate:.1f}%**."
     else:
-        direction = f"The negative share is effectively unchanged at **{after['negative_share']:.1f}%** ({share_change:+.1f} percentage points)."
+        prefix = "The premise does not match the current selection: the negative share" if premise_mismatch else "The negative share"
+        direction = f"{prefix} is effectively unchanged at **{after['negative_share']:.1f}%** ({share_change:+.1f} percentage points)."
         reason = "Positive contribution and negative impact changed in nearly the same proportion, so the balance between the two sides remained stable."
     return (
         f"After excluding **{m['excluded_player_count']} player(s)**{period_text} — **{_excluded_text(answer['parameters'].get('excluded_players', []))}** — {direction}\n\n"
