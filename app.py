@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import unicodedata
+import re
 
 # Clean player names for display while preserving letters from all languages.
 def clean_player_name(name):
@@ -648,6 +649,111 @@ filtered_df = period_df[
     (period_df["alliance"].isin(selected_alliances)) &
     (period_df["net_status"].isin(selected_net_status))
 ].copy()
+
+# Ask the Dashboard
+from ask_dashboard import (
+    QUESTION_CUSTOM,
+    QUESTION_EXCLUSION_IMPACT,
+    QUESTION_NEGATIVE_PERCENTAGE,
+    QUESTION_NET_VS_POSITIVE,
+    QUESTION_TOP_CONTRIBUTORS,
+    SUGGESTED_QUESTIONS,
+    calculate_dashboard_answer,
+    render_dashboard_answer,
+)
+
+
+def get_current_selected_player_names(data):
+    """Return the Player Selection tab's current included-player list."""
+    if "player_name" not in data.columns:
+        return []
+
+    available_players = sorted(
+        data["player_name"].dropna().unique().tolist()
+    )
+    stored_selection = st.session_state.get(
+        "dashboard_selected_players"
+    )
+
+    # Before the Player Selection widget has been rendered, its intended
+    # default is to include every player in the current filtered scope.
+    if stored_selection is None:
+        return available_players
+
+    available_set = set(available_players)
+    return [
+        player for player in stored_selection
+        if player in available_set
+    ]
+
+
+@st.dialog("Ask the Dashboard", width="large")
+def ask_dashboard_dialog():
+    alliance_scope = ", ".join(map(str, selected_alliances)) or "None"
+    status_scope = ", ".join(map(str, selected_net_status)) or "None"
+    current_selected_players = get_current_selected_player_names(
+        filtered_df
+    )
+    total_players_in_scope = (
+        filtered_df["player_name"].nunique()
+        if "player_name" in filtered_df.columns
+        else 0
+    )
+
+    st.caption(
+        f"Current scope — SVS: {selected_svs} | "
+        f"Alliances: {alliance_scope} | Net status: {status_scope} | "
+        f"Included players: {len(current_selected_players)}/"
+        f"{total_players_in_scope}"
+    )
+
+    suggested_question = st.selectbox(
+        "Choose a suggested question",
+        SUGGESTED_QUESTIONS,
+    )
+
+    custom_question = ""
+
+    if suggested_question == QUESTION_CUSTOM:
+        st.caption(
+            "Free-text questions currently use rule-based matching. Supported "
+            "topics include alliance ranking, player exclusions, negative "
+            "share, top contributors, and total net score without named "
+            "alliances."
+        )
+        custom_question = st.text_area(
+            "Enter your question",
+            placeholder=(
+                "Examples: What is the total net score without TDA? "
+                "Who contributed most in SnS?"
+            ),
+        )
+
+    question = (
+        custom_question.strip()
+        if suggested_question == QUESTION_CUSTOM
+        else suggested_question
+    )
+
+    if st.button(
+        "Explain",
+        type="primary",
+        disabled=not question,
+    ):
+        answer = calculate_dashboard_answer(
+            question,
+            filtered_df,
+            selected_svs,
+            current_selected_players,
+            alliance_options,
+        )
+        st.markdown("### Explanation")
+        st.markdown(render_dashboard_answer(answer))
+
+
+if st.button("💬 Ask the Dashboard", type="primary"):
+    ask_dashboard_dialog()
+
 
 # Tabs
 tab_overview, tab_alliance, tab_players, tab_contribution, tab_player_selection = st.tabs(
@@ -1318,6 +1424,12 @@ with tab_player_selection:
                 default=player_options
             )
 
+    # Keep the current selection available to Ask the Dashboard, whose
+    # dialog is defined earlier in the script than this tab's widgets.
+    st.session_state["dashboard_selected_players"] = list(
+        selected_players
+    )
+
     # Data based on selected players
     selected_player_df = player_scope_df[
         player_scope_df["player_name"].isin(selected_players)
@@ -1600,4 +1712,3 @@ with tab_player_selection:
                     "average_net_score": st.column_config.NumberColumn(t("net_per_player"), format="%,.0f"),
                 }
             )
-
