@@ -9,7 +9,10 @@ from ask_dashboard import (
     QUESTION_NET_VS_POSITIVE,
     QUESTION_TOP_CONTRIBUTORS,
     calculate_dashboard_answer,
+    execute_dashboard_intent,
     render_dashboard_answer,
+    route_dashboard_question,
+    validate_intent_contract,
 )
 
 
@@ -36,6 +39,416 @@ def ask(question, data=None, selected=None, known=None):
     assert isinstance(answer, dict)
     assert answer["kind"] == "dashboard_answer"
     return answer
+
+
+def assert_json_serializable(value):
+    json.dumps(value)
+
+
+def test_exact_suggested_questions_route_to_contracts():
+    expected = {
+        QUESTION_NET_VS_POSITIVE: ("net_vs_positive_ranking", {}),
+        QUESTION_EXCLUSION_IMPACT: ("player_exclusion_impact", {}),
+        QUESTION_NEGATIVE_PERCENTAGE: ("negative_share_change", {"requested_direction": "increase"}),
+        QUESTION_TOP_CONTRIBUTORS: ("top_contributors", {"alliance_names": []}),
+    }
+    for question, (intent, parameters) in expected.items():
+        contract = route_dashboard_question(question, known_alliance_names=["AAA", "BBB"])
+        assert contract["intent"] == intent
+        assert contract["parameters"] == parameters
+        assert contract["source"] == "rule"
+        assert contract["confidence"] == 1.0
+        assert contract["match_status"] == "matched"
+        assert_json_serializable(contract)
+
+
+@pytest.mark.parametrize(
+    ("question", "intent"),
+    [
+        ("How did excluding selected players change the result?", "player_exclusion_impact"),
+        ("Why is the net-score leader not first in positive contribution?", "net_vs_positive_ranking"),
+        ("Which alliance leads net score, and why?", "net_score_leader_summary"),
+        ("Show the best contributors in SnS.", "top_contributors"),
+        ("What is the total net score without TDA?", "alliance_exclusion_total_net"),
+    ],
+)
+def test_natural_language_variants_route_to_contract_intents(question, intent):
+    contract = route_dashboard_question(question, known_alliance_names=["SnS", "TDA"])
+    assert contract["intent"] == intent
+    assert contract["match_status"] == "matched"
+
+
+def test_route_extracts_named_alliances_and_negative_direction():
+    contributors = route_dashboard_question("Who contributed most in SnS?", ["SnS", "TDA"])
+    exclusion = route_dashboard_question("What is the total net score without TDA?", ["SnS", "TDA"])
+    negative = route_dashboard_question("Why is the negative percentage lower now?", ["SnS"])
+    assert contributors["parameters"]["alliance_names"] == ["SnS"]
+    assert exclusion["parameters"]["excluded_alliances"] == ["TDA"]
+    assert negative["parameters"]["requested_direction"] == "decrease"
+
+
+def test_route_missing_alliance_and_unsupported_contracts():
+    clarification = route_dashboard_question("What is the total net score without that alliance?", ["AAA"])
+    unsupported = route_dashboard_question("Predict the next SVS result.", ["AAA"])
+    assert clarification["match_status"] == "needs_clarification"
+    assert clarification["guidance_code"] == "missing_alliance_name"
+    assert unsupported["match_status"] == "unsupported"
+    assert unsupported["confidence"] == 0.0
+    assert unsupported["guidance_code"] == "unsupported_question"
+
+
+def test_route_does_not_require_dataframe():
+    contract = route_dashboard_question("Who contributed most in AAA?", ["AAA"])
+    assert contract["intent"] == "top_contributors"
+    assert_json_serializable(contract)
+
+
+def test_validate_intent_contract_valid_contract_passes():
+    contract = route_dashboard_question("Why did the negative share rise?", ["AAA"])
+    assert validate_intent_contract(contract) == contract
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("schema_version", 999, "schema_version"),
+        ("intent", "made_up", "unknown intent"),
+        ("source", "bogus", "source"),
+        ("confidence", 2, "confidence"),
+        ("confidence", True, "confidence"),
+        ("match_status", "maybe", "match_status"),
+        ("parameters", [], "parameters"),
+    ],
+)
+def test_validate_intent_contract_rejects_invalid_fields(field, value, message):
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    contract[field] = value
+    with pytest.raises(ValueError, match=message):
+        validate_intent_contract(contract)
+
+
+def test_validate_intent_contract_rejects_incorrect_parameter_shapes():
+    bad_top = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    bad_top["parameters"]["alliance_names"] = "AAA"
+    with pytest.raises(ValueError, match="alliance_names"):
+        validate_intent_contract(bad_top)
+    bad_negative = route_dashboard_question(QUESTION_NEGATIVE_PERCENTAGE, ["AAA"])
+    bad_negative["parameters"]["requested_direction"] = "sideways"
+    with pytest.raises(ValueError, match="requested_direction"):
+        validate_intent_contract(bad_negative)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        QUESTION_NET_VS_POSITIVE,
+        QUESTION_EXCLUSION_IMPACT,
+        QUESTION_NEGATIVE_PERCENTAGE,
+        QUESTION_TOP_CONTRIBUTORS,
+        "What is the total net score without BBB?",
+        "Which alliance leads net score, and why?",
+    ],
+)
+def test_execute_contract_matches_wrapper_visible_result(question):
+    data = sample_data()
+    selected = ["A1", "B1", "C1"]
+    known = data["alliance"].dropna().unique().tolist()
+    wrapper = calculate_dashboard_answer(question, data, "SVS Test", selected, known)
+    contract = route_dashboard_question(question, known)
+    executed = execute_dashboard_intent(contract, data, "SVS Test", selected, known)
+    assert executed["intent"] == wrapper["intent"]
+    assert render_dashboard_answer(executed) == render_dashboard_answer(wrapper)
+
+
+def test_execute_clarification_and_unsupported_without_calculation():
+    clarification = execute_dashboard_intent(
+        route_dashboard_question("What is the total net score without that alliance?", ["AAA"]),
+        pd.DataFrame(),
+        "SVS Test",
+        known_alliance_names=["AAA"],
+    )
+    unsupported = execute_dashboard_intent(
+        route_dashboard_question("Predict the next SVS result.", ["AAA"]),
+        pd.DataFrame(),
+        "SVS Test",
+    )
+    assert clarification["status"] == "guidance"
+    assert clarification["guidance_code"] == "missing_alliance_name"
+    assert unsupported["guidance_code"] == "unsupported_question"
+    assert "rule-based matching rather than an AI API" in render_dashboard_answer(unsupported)
+
+
+def test_direct_api_execution_attaches_routing_source():
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    contract["source"] = "api"
+    contract["confidence"] = 0.72
+    answer = execute_dashboard_intent(contract, sample_data(), "SVS Test")
+    assert answer["routing"]["source"] == "api"
+    assert answer["routing"]["confidence"] == 0.72
+
+
+def test_direct_execution_includes_routing_for_all_result_states():
+    data = sample_data()
+    matched = execute_dashboard_intent(route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"]), data, "SVS Test")
+    clarification = execute_dashboard_intent(
+        route_dashboard_question("What is the total net score without that alliance?", ["AAA"]),
+        data,
+        "SVS Test",
+    )
+    unsupported = execute_dashboard_intent(route_dashboard_question("Predict the next SVS result.", ["AAA"]), data, "SVS Test")
+    calculator_guidance = execute_dashboard_intent(
+        route_dashboard_question(QUESTION_EXCLUSION_IMPACT, ["AAA"]),
+        pd.DataFrame(columns=["player_name", "score_gained", "score_lost", "net_score"]),
+        "SVS Test",
+    )
+    calculator_error = execute_dashboard_intent(
+        route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"]),
+        pd.DataFrame(),
+        "SVS Test",
+    )
+    for answer in [matched, clarification, unsupported, calculator_guidance, calculator_error]:
+        assert "routing" in answer
+        assert_json_serializable(answer["routing"])
+    assert matched["status"] == "ok"
+    assert clarification["status"] == "guidance"
+    assert unsupported["guidance_code"] == "unsupported_question"
+    assert calculator_guidance["guidance_code"] == "empty_player_scope"
+    assert calculator_error["error_code"] == "missing_columns"
+
+
+def test_wrapper_preserves_question_mentions_and_json_serializable_answer():
+    data = sample_data().replace({"AAA": "SnS"})
+    answer = calculate_dashboard_answer("Who contributed most in SnS?", data, "SVS Test")
+    assert answer["parameters"]["question"] == "Who contributed most in SnS?"
+    assert answer["parameters"]["mentioned_alliances"] == ["SnS"]
+    assert_json_serializable(answer)
+
+
+def test_question_log_source_from_direct_executor_answer():
+    from ask_dashboard import build_question_log_record
+
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    contract["source"] = "api"
+    contract["confidence"] = 0.5
+    answer = execute_dashboard_intent(contract, sample_data(), "SVS Test")
+    record = build_question_log_record(answer, timestamp_utc="2026-07-15T06:30:00Z")
+    assert record["source"] == "api"
+
+
+def test_malformed_contract_cannot_invoke_calculation():
+    with pytest.raises(ValueError):
+        execute_dashboard_intent({"intent": "top_contributors"}, sample_data())
+
+
+def test_malformed_contract_cannot_invoke_calculation_function(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("calculation should not be invoked")
+
+    monkeypatch.setattr("ask_dashboard.calculate_top_contributors", fail_if_called)
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    contract["confidence"] = 0.5
+    with pytest.raises(ValueError, match="confidence"):
+        execute_dashboard_intent(contract, sample_data())
+
+
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"intent": "unsupported_question", "match_status": "matched", "confidence": 1.0, "guidance_code": None},
+        {"intent": "unsupported_question", "match_status": "needs_clarification", "confidence": 1.0, "guidance_code": "unsupported_question"},
+        {"intent": "top_contributors", "match_status": "unsupported", "confidence": 0.0, "guidance_code": "unsupported_question"},
+        {"intent": "unsupported_question", "match_status": "unsupported", "confidence": 0.0, "guidance_code": "other"},
+        {"intent": "unsupported_question", "match_status": "unsupported", "confidence": 0.0, "guidance_code": "unsupported_question", "parameters": {"x": 1}},
+    ],
+)
+def test_validate_rejects_unsupported_semantic_conflicts(updates):
+    contract = route_dashboard_question("Predict the next SVS result.", ["AAA"])
+    contract.update(updates)
+    with pytest.raises(ValueError):
+        validate_intent_contract(contract)
+
+
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"intent": "top_contributors", "parameters": {"alliance_names": []}},
+        {"intent": "alliance_exclusion_total_net", "parameters": {"excluded_alliances": ["AAA"]}},
+    ],
+)
+def test_validate_rejects_invalid_clarification_contracts(updates):
+    contract = route_dashboard_question("What is the total net score without that alliance?", ["AAA"])
+    contract.update(updates)
+    with pytest.raises(ValueError):
+        validate_intent_contract(contract)
+
+
+def test_validate_rejects_matched_empty_alliance_exclusion():
+    contract = route_dashboard_question("What is the total net score without AAA?", ["AAA"])
+    contract["parameters"]["excluded_alliances"] = []
+    with pytest.raises(ValueError, match="requires excluded_alliances"):
+        validate_intent_contract(contract)
+
+
+@pytest.mark.parametrize(
+    "contract",
+    [
+        {
+            "schema_version": 1,
+            "intent": "alliance_exclusion_total_net",
+            "parameters": {"excluded_alliances": [""]},
+            "source": "rule",
+            "confidence": 1.0,
+            "match_status": "matched",
+            "guidance_code": None,
+        },
+        {
+            "schema_version": 1,
+            "intent": "top_contributors",
+            "parameters": {"alliance_names": ["   "]},
+            "source": "rule",
+            "confidence": 1.0,
+            "match_status": "matched",
+            "guidance_code": None,
+        },
+    ],
+)
+def test_validate_rejects_blank_alliance_names(contract):
+    with pytest.raises(ValueError, match="nonblank"):
+        validate_intent_contract(contract)
+
+
+@pytest.mark.parametrize(
+    "match_status, confidence, guidance_code",
+    [
+        ("matched", 0.9, None),
+        ("needs_clarification", 0.9, "missing_alliance_name"),
+        ("unsupported", 0.1, "unsupported_question"),
+    ],
+)
+def test_validate_rejects_invalid_rule_confidence_values(match_status, confidence, guidance_code):
+    intent = "unsupported_question" if match_status == "unsupported" else "alliance_exclusion_total_net"
+    parameters = {} if match_status == "unsupported" else {"excluded_alliances": [] if match_status == "needs_clarification" else ["AAA"]}
+    contract = {
+        "schema_version": 1,
+        "intent": intent,
+        "parameters": parameters,
+        "source": "rule",
+        "confidence": confidence,
+        "match_status": match_status,
+        "guidance_code": guidance_code,
+    }
+    with pytest.raises(ValueError, match="confidence"):
+        validate_intent_contract(contract)
+
+
+@pytest.mark.parametrize("confidence", [float("nan"), float("inf"), float("-inf")])
+def test_validate_rejects_nonfinite_confidence_values(confidence):
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    contract["confidence"] = confidence
+    with pytest.raises(ValueError, match="finite"):
+        validate_intent_contract(contract)
+
+
+def test_validate_rejects_unknown_top_level_contract_field():
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    contract["unexpected"] = "payload"
+    with pytest.raises(ValueError, match="unknown intent contract field"):
+        validate_intent_contract(contract)
+
+
+@pytest.mark.parametrize(
+    "contract",
+    [
+        {
+            "schema_version": 1,
+            "intent": "top_contributors",
+            "parameters": {"alliance_names": ["AAA"], "unexpected": "payload"},
+            "source": "rule",
+            "confidence": 1.0,
+            "match_status": "matched",
+            "guidance_code": None,
+        },
+        {
+            "schema_version": 1,
+            "intent": "negative_share_change",
+            "parameters": {"requested_direction": "increase", "unexpected": "payload"},
+            "source": "rule",
+            "confidence": 1.0,
+            "match_status": "matched",
+            "guidance_code": None,
+        },
+        {
+            "schema_version": 1,
+            "intent": "alliance_exclusion_total_net",
+            "parameters": {"excluded_alliances": ["AAA"], "unexpected": "payload"},
+            "source": "rule",
+            "confidence": 1.0,
+            "match_status": "matched",
+            "guidance_code": None,
+        },
+    ],
+)
+def test_validate_rejects_unknown_parameter_fields(contract):
+    with pytest.raises(ValueError, match="unknown parameter field"):
+        validate_intent_contract(contract)
+
+
+def test_validate_rejects_parameters_for_intent_that_accepts_none():
+    contract = route_dashboard_question(QUESTION_NET_VS_POSITIVE, ["AAA"])
+    contract["parameters"] = {"unexpected": "payload"}
+    with pytest.raises(ValueError, match="does not accept parameters"):
+        validate_intent_contract(contract)
+
+
+def test_validate_rejects_non_json_serializable_top_level_value():
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    contract["unexpected"] = object()
+    with pytest.raises(ValueError, match="unknown intent contract field"):
+        validate_intent_contract(contract)
+
+
+def test_validate_rejects_non_json_serializable_nested_parameter_value():
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    contract["parameters"]["alliance_names"] = [object()]
+    with pytest.raises(ValueError, match="nonblank strings"):
+        validate_intent_contract(contract)
+
+
+def test_validate_wraps_json_serialization_failures(monkeypatch):
+    def fail_json_dumps(_value):
+        raise TypeError("not serializable")
+
+    monkeypatch.setattr("ask_dashboard.json.dumps", fail_json_dumps)
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    with pytest.raises(ValueError, match="JSON serializable"):
+        validate_intent_contract(contract)
+
+
+def test_rule_and_api_contracts_remain_json_serializable():
+    rule_contract = validate_intent_contract(route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"]))
+    api_contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    api_contract["source"] = "api"
+    api_contract["confidence"] = 0.42
+    api_contract = validate_intent_contract(api_contract)
+    json.dumps(rule_contract)
+    json.dumps(api_contract)
+
+
+def test_answer_includes_json_serializable_routing_metadata():
+    answer = ask("Who contributed most in AAA?")
+    assert answer["routing"]["intent"] == "top_contributors"
+    encoded = json.dumps(answer["routing"])
+    assert "DataFrame" not in encoded and "rankings" not in encoded
+    assert_json_serializable(answer)
+
+
+def test_question_log_source_comes_from_routing_metadata():
+    from ask_dashboard import build_question_log_record
+
+    answer = ask(QUESTION_TOP_CONTRIBUTORS)
+    answer["routing"]["source"] = "api"
+    record = build_question_log_record(answer, timestamp_utc="2026-07-15T06:30:00Z")
+    assert record["source"] == "api"
 
 
 def test_suggested_net_vs_positive_question():
