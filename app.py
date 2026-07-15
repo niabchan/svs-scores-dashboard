@@ -1,3 +1,6 @@
+import json
+import os
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -658,6 +661,8 @@ from ask_dashboard import (
     QUESTION_NET_VS_POSITIVE,
     QUESTION_TOP_CONTRIBUTORS,
     SUGGESTED_QUESTIONS,
+    append_question_log_record,
+    build_question_log_record,
     calculate_dashboard_answer,
     render_dashboard_answer,
 )
@@ -747,8 +752,36 @@ def ask_dashboard_dialog():
             current_selected_players,
             alliance_options,
         )
+        record = build_question_log_record(
+            answer,
+            selected_alliances=selected_alliances,
+            selected_net_status=selected_net_status,
+            selected_player_count=len(current_selected_players),
+            total_player_count=total_players_in_scope,
+        )
+        st.session_state["ask_dashboard_question_log"] = append_question_log_record(
+            st.session_state.get("ask_dashboard_question_log", []),
+            record,
+            max_entries=100,
+        )
         st.markdown("### Explanation")
         st.markdown(render_dashboard_answer(answer))
+
+    if os.environ.get("ASK_DASHBOARD_DEBUG_LOG", "").strip().lower() in {"1", "true", "yes", "on"}:
+        records = st.session_state.get("ask_dashboard_question_log", [])
+        with st.expander("Developer: Question analysis log", expanded=False):
+            st.caption(f"{len(records)} record(s) in the current Streamlit session.")
+            if records:
+                st.dataframe(records, use_container_width=True)
+                st.download_button(
+                    "Download session log JSON",
+                    data=json.dumps(records, indent=2),
+                    file_name="ask_dashboard_question_log.json",
+                    mime="application/json",
+                )
+            if st.button("Clear question analysis log"):
+                st.session_state["ask_dashboard_question_log"] = []
+                st.rerun()
 
 
 if st.button("💬 Ask the Dashboard", type="primary"):
