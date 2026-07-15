@@ -27,6 +27,20 @@ SUGGESTED_QUESTIONS = [
     QUESTION_CUSTOM,
 ]
 
+INTENT_CONTRACT_SCHEMA_VERSION = 1
+INTENT_MATCH_STATUSES = {"matched", "needs_clarification", "unsupported"}
+INTENT_SOURCES = {"rule", "api"}
+SUPPORTED_DASHBOARD_INTENTS = {
+    "net_vs_positive_ranking",
+    "player_exclusion_impact",
+    "negative_share_change",
+    "top_contributors",
+    "alliance_exclusion_total_net",
+    "net_score_leader_summary",
+    "unsupported_question",
+}
+NEGATIVE_SHARE_DIRECTIONS = {"increase", "decrease", "neutral", "unspecified"}
+
 CONTRIBUTOR_CONTEXT_TERMS = {"contributor", "contributors", "contribution", "contributed", "contributing", "contribut", "player", "players", "who"}
 CONTRIBUTOR_RANKING_TERMS = {"best", "top", "most"}
 EXCLUSION_TERMS = {"exclude", "excluded", "excluding", "exclusion", "exclusions", "without", "remove", "removed", "removing", "except"}
@@ -98,6 +112,145 @@ def extract_alliance_names_from_question(question, alliance_names):
     return matches
 
 
+def _intent_contract(intent, parameters=None, match_status="matched", guidance_code=None, confidence=None):
+    if confidence is None:
+        confidence = 0.0 if match_status == "unsupported" else 1.0
+    return {
+        "schema_version": INTENT_CONTRACT_SCHEMA_VERSION,
+        "intent": intent,
+        "parameters": parameters or {},
+        "source": "rule",
+        "confidence": confidence,
+        "match_status": match_status,
+        "guidance_code": guidance_code,
+    }
+
+
+def route_dashboard_question(question, known_alliance_names=None):
+    """Return a JSON-serializable intent contract for a dashboard question."""
+    normalized_question = normalize_question_text(question)
+    known_alliance_names = known_alliance_names or []
+    mentioned_alliances = extract_alliance_names_from_question(question, known_alliance_names)
+
+    if question == QUESTION_NET_VS_POSITIVE:
+        return _intent_contract("net_vs_positive_ranking")
+    if question == QUESTION_EXCLUSION_IMPACT:
+        return _intent_contract("player_exclusion_impact")
+    if question == QUESTION_NEGATIVE_PERCENTAGE:
+        return _intent_contract("negative_share_change", {"requested_direction": "increase"})
+    if question == QUESTION_TOP_CONTRIBUTORS:
+        return _intent_contract("top_contributors", {"alliance_names": []})
+
+    has_exclusion_term = _has_any_word(normalized_question, EXCLUSION_TERMS)
+    asks_about_player_exclusion = has_exclusion_term and ("player" in normalized_question or "selected" in normalized_question)
+    asks_about_exclusion_effect = _has_any_word(normalized_question, EXCLUSION_EFFECT_TERMS)
+    asks_about_negative_share = (
+        "negative" in normalized_question
+        and _has_any_phrase(normalized_question, {"percentage", "percent", "share", "ratio"})
+        and _has_any_word(normalized_question, NEGATIVE_CHANGE_TERMS)
+    )
+    asks_about_positive_rank = (
+        _has_any_phrase(normalized_question, POSITIVE_RANK_TERMS)
+        or ("positive" in normalized_question and _has_any_word(normalized_question, {"rank", "ranking", "first", "top"}))
+    )
+    asks_about_net_leader = "net" in normalized_question and (
+        "alliance" in normalized_question
+        or _has_any_word_or_phrase(normalized_question, NET_LEADER_WORD_TERMS, NET_LEADER_PHRASE_TERMS)
+    )
+    asks_general_net_leader = asks_about_net_leader and not asks_about_positive_rank
+    has_contributor_context = _has_any_phrase(normalized_question, CONTRIBUTOR_CONTEXT_TERMS)
+    has_contributor_ranking = _has_any_word(normalized_question, CONTRIBUTOR_RANKING_TERMS)
+    asks_about_contributors = has_contributor_context and (
+        has_contributor_ranking
+        or _has_any_phrase(normalized_question, {"contribut", "player"})
+    )
+
+    if has_exclusion_term and mentioned_alliances and any(term in normalized_question for term in ["alliance", "net", "score", "total", "change"]):
+        return _intent_contract("alliance_exclusion_total_net", {"excluded_alliances": mentioned_alliances})
+    if asks_about_player_exclusion and asks_about_exclusion_effect:
+        return _intent_contract("player_exclusion_impact")
+    if has_exclusion_term and ("net score" in normalized_question or "total net" in normalized_question) and not mentioned_alliances:
+        return _intent_contract(
+            "alliance_exclusion_total_net",
+            {"excluded_alliances": []},
+            match_status="needs_clarification",
+            guidance_code="missing_alliance_name",
+        )
+    if asks_about_net_leader and asks_about_positive_rank:
+        return _intent_contract("net_vs_positive_ranking")
+    if asks_general_net_leader:
+        return _intent_contract("net_score_leader_summary")
+    if asks_about_negative_share:
+        return _intent_contract(
+            "negative_share_change",
+            {"requested_direction": classify_negative_share_requested_direction(question)},
+        )
+    if asks_about_contributors and ("alliance" in normalized_question or mentioned_alliances):
+        return _intent_contract("top_contributors", {"alliance_names": mentioned_alliances})
+    return _intent_contract(
+        "unsupported_question",
+        match_status="unsupported",
+        guidance_code="unsupported_question",
+    )
+
+
+def validate_intent_contract(contract):
+    """Validate and normalize an Ask Dashboard intent contract."""
+    if not isinstance(contract, dict):
+        raise ValueError("intent contract must be a dictionary")
+    normalized = dict(contract)
+    if normalized.get("schema_version") != INTENT_CONTRACT_SCHEMA_VERSION:
+        raise ValueError("unsupported intent contract schema_version")
+    intent = normalized.get("intent")
+    if intent not in SUPPORTED_DASHBOARD_INTENTS:
+        raise ValueError("unknown intent")
+    source = normalized.get("source")
+    if source not in INTENT_SOURCES:
+        raise ValueError("invalid intent source")
+    confidence = normalized.get("confidence")
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or confidence < 0 or confidence > 1:
+        raise ValueError("confidence must be numeric between 0 and 1")
+    match_status = normalized.get("match_status")
+    if match_status not in INTENT_MATCH_STATUSES:
+        raise ValueError("invalid match_status")
+    parameters = normalized.get("parameters")
+    if not isinstance(parameters, dict):
+        raise ValueError("parameters must be a dictionary")
+    guidance_code = normalized.get("guidance_code")
+    if guidance_code is not None and not isinstance(guidance_code, str):
+        raise ValueError("guidance_code must be a string or None")
+    if match_status == "matched" and guidance_code is not None:
+        raise ValueError("matched contracts cannot include guidance_code")
+    if match_status in {"needs_clarification", "unsupported"} and not guidance_code:
+        raise ValueError("clarification and unsupported contracts require guidance_code")
+    if match_status == "unsupported" and confidence != 0.0:
+        raise ValueError("unsupported contracts must use confidence 0.0")
+
+    params = dict(parameters)
+    if intent == "negative_share_change":
+        direction = params.get("requested_direction", "unspecified")
+        if direction not in NEGATIVE_SHARE_DIRECTIONS:
+            raise ValueError("negative_share_change requested_direction is invalid")
+        params["requested_direction"] = direction
+    elif intent == "top_contributors":
+        names = params.get("alliance_names", [])
+        if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
+            raise ValueError("top_contributors alliance_names must be a list of strings")
+        params["alliance_names"] = list(names)
+    elif intent == "alliance_exclusion_total_net":
+        names = params.get("excluded_alliances", [])
+        if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
+            raise ValueError("alliance_exclusion_total_net excluded_alliances must be a list of strings")
+        if match_status == "needs_clarification" and guidance_code != "missing_alliance_name":
+            raise ValueError("alliance exclusion clarification requires missing_alliance_name")
+        params["excluded_alliances"] = list(names)
+    elif params:
+        raise ValueError(f"{intent} does not accept parameters")
+
+    normalized["parameters"] = params
+    normalized["confidence"] = float(confidence)
+    return _json_value(normalized)
+
 
 def _utc_timestamp(timestamp_utc=None):
     if timestamp_utc is None:
@@ -127,6 +280,7 @@ def build_question_log_record(
     """Build a minimal JSON-serializable Ask Dashboard session log record."""
     params = answer.get("parameters", {}) if isinstance(answer, dict) else {}
     metrics = answer.get("metrics", {}) if isinstance(answer, dict) else {}
+    routing = answer.get("routing", {}) if isinstance(answer, dict) else {}
     total_count = int(_json_value(total_player_count or 0))
     selected_count = int(_json_value(selected_player_count if selected_player_count is not None else total_count))
     excluded_count = max(total_count - selected_count, 0)
@@ -141,7 +295,7 @@ def build_question_log_record(
         "status": str(answer.get("status")) if isinstance(answer, dict) else None,
         "guidance_code": _json_value(answer.get("guidance_code")) if isinstance(answer, dict) else None,
         "error_code": _json_value(answer.get("error_code")) if isinstance(answer, dict) else None,
-        "source": "rule",
+        "source": str(routing.get("source", "rule")) if isinstance(routing, dict) else "rule",
         "period": _json_value(answer.get("period")) if isinstance(answer, dict) else None,
         "mentioned_alliances": _plain_string_list(params.get("mentioned_alliances")),
         "requested_direction": _json_value(params.get("requested_direction")),
@@ -460,63 +614,59 @@ def calculate_top_contributors(data, svs_period=None, alliance_names=None):
         groups.append({"alliance": alliance, "positive_total": positive_total, "net_total": players["net_score"].sum(), "top_n": top_n, "ranking_description": ("positive contributors by net score" if not positive_players.empty else "players with the highest net scores; no player has a positive net score in this scope"), "players": [{**row._asdict(), "share_of_positive": (row.net_score / positive_total * 100 if row.net_score > 0 and positive_total > 0 else None)} for row in ranked.itertuples(index=False)]})
     return _base_result(intent, "ok", svs_period, parameters=params, metrics={"alliance_count": len(alliances), "top_n": top_n}, rankings={"alliances": groups})
 
+def execute_dashboard_intent(contract, data, svs_period=None, selected_player_names=None, known_alliance_names=None):
+    """Validate and execute a dashboard intent contract."""
+    contract = validate_intent_contract(contract)
+    intent = contract["intent"]
+    params = contract["parameters"]
+
+    if contract["match_status"] == "unsupported":
+        return _base_result("unsupported_question", "guidance", svs_period, contract["guidance_code"])
+    if contract["match_status"] == "needs_clarification":
+        result_params = {}
+        if intent == "alliance_exclusion_total_net":
+            result_params["excluded_alliances"] = params.get("excluded_alliances", [])
+            if known_alliance_names is not None:
+                result_params["available_alliances"] = list(map(str, known_alliance_names))
+        return _base_result(intent, "guidance", svs_period, contract["guidance_code"], parameters=result_params)
+
+    if intent == "net_vs_positive_ranking":
+        return calculate_net_vs_positive_ranking(data, svs_period)
+    if intent == "player_exclusion_impact":
+        return calculate_exclusion_impact(data, selected_player_names, svs_period)
+    if intent == "negative_share_change":
+        return calculate_negative_percentage_change(
+            data,
+            selected_player_names,
+            svs_period,
+            params.get("requested_direction", "unspecified"),
+        )
+    if intent == "top_contributors":
+        return calculate_top_contributors(data, svs_period, alliance_names=params.get("alliance_names") or None)
+    if intent == "alliance_exclusion_total_net":
+        return calculate_total_net_excluding_alliances(data, params.get("excluded_alliances", []), svs_period)
+    if intent == "net_score_leader_summary":
+        return calculate_net_score_leader_summary(data, svs_period)
+    raise ValueError(f"unknown intent: {intent}")
+
+
 def calculate_dashboard_answer(question, data, svs_period=None, selected_player_names=None, known_alliance_names=None):
     """Route a question and return a structured Ask Dashboard answer."""
-    normalized_question = normalize_question_text(question)
     if known_alliance_names is None:
         known_alliance_names = data["alliance"].dropna().unique().tolist() if "alliance" in data.columns else []
+    contract = route_dashboard_question(question, known_alliance_names)
+    validated_contract = validate_intent_contract(contract)
     mentioned_alliances = extract_alliance_names_from_question(question, known_alliance_names)
     common = {"question": question, "mentioned_alliances": mentioned_alliances}
-    if question == QUESTION_NET_VS_POSITIVE:
-        result = calculate_net_vs_positive_ranking(data, svs_period)
-    elif question == QUESTION_EXCLUSION_IMPACT:
-        result = calculate_exclusion_impact(data, selected_player_names, svs_period)
-    elif question == QUESTION_NEGATIVE_PERCENTAGE:
-        result = calculate_negative_percentage_change(data, selected_player_names, svs_period, "increase")
-    elif question == QUESTION_TOP_CONTRIBUTORS:
-        result = calculate_top_contributors(data, svs_period)
-    else:
-        has_exclusion_term = _has_any_word(normalized_question, EXCLUSION_TERMS)
-        asks_about_player_exclusion = has_exclusion_term and ("player" in normalized_question or "selected" in normalized_question)
-        asks_about_exclusion_effect = _has_any_word(normalized_question, EXCLUSION_EFFECT_TERMS)
-        asks_about_negative_share = (
-            "negative" in normalized_question
-            and _has_any_phrase(normalized_question, {"percentage", "percent", "share", "ratio"})
-            and _has_any_word(normalized_question, NEGATIVE_CHANGE_TERMS)
-        )
-        asks_about_positive_rank = (
-            _has_any_phrase(normalized_question, POSITIVE_RANK_TERMS)
-            or ("positive" in normalized_question and _has_any_word(normalized_question, {"rank", "ranking", "first", "top"}))
-        )
-        asks_about_net_leader = "net" in normalized_question and (
-            "alliance" in normalized_question
-            or _has_any_word_or_phrase(normalized_question, NET_LEADER_WORD_TERMS, NET_LEADER_PHRASE_TERMS)
-        )
-        asks_general_net_leader = asks_about_net_leader and not asks_about_positive_rank
-        has_contributor_context = _has_any_phrase(normalized_question, CONTRIBUTOR_CONTEXT_TERMS)
-        has_contributor_ranking = _has_any_word(normalized_question, CONTRIBUTOR_RANKING_TERMS)
-        asks_about_contributors = has_contributor_context and (
-            has_contributor_ranking
-            or _has_any_phrase(normalized_question, {"contribut", "player"})
-        )
-        if has_exclusion_term and mentioned_alliances and any(term in normalized_question for term in ["alliance", "net", "score", "total", "change"]):
-            result = calculate_total_net_excluding_alliances(data, mentioned_alliances, svs_period)
-        elif asks_about_player_exclusion and asks_about_exclusion_effect:
-            result = calculate_exclusion_impact(data, selected_player_names, svs_period)
-        elif has_exclusion_term and ("net score" in normalized_question or "total net" in normalized_question) and not mentioned_alliances:
-            result = _base_result("alliance_exclusion_total_net", "guidance", svs_period, "missing_alliance_name", parameters={"available_alliances": list(map(str, known_alliance_names))})
-        elif asks_about_net_leader and asks_about_positive_rank:
-            result = calculate_net_vs_positive_ranking(data, svs_period)
-        elif asks_general_net_leader:
-            result = calculate_net_score_leader_summary(data, svs_period)
-        elif asks_about_negative_share:
-            requested_direction = classify_negative_share_requested_direction(question)
-            result = calculate_negative_percentage_change(data, selected_player_names, svs_period, requested_direction)
-        elif asks_about_contributors and ("alliance" in normalized_question or mentioned_alliances):
-            result = calculate_top_contributors(data, svs_period, alliance_names=mentioned_alliances or None)
-        else:
-            result = _base_result("unsupported_question", "guidance", svs_period, "unsupported_question")
+    result = execute_dashboard_intent(
+        validated_contract,
+        data,
+        svs_period,
+        selected_player_names,
+        known_alliance_names,
+    )
     result["parameters"] = {**common, **result.get("parameters", {})}
+    result["routing"] = validated_contract
     return result
 
 def _period_text(period, prefix=" in ", bold=False):
