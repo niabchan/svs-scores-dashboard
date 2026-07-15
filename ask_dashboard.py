@@ -1,3 +1,4 @@
+import json
 import math
 import re
 import unicodedata
@@ -31,6 +32,15 @@ SUGGESTED_QUESTIONS = [
 INTENT_CONTRACT_SCHEMA_VERSION = 1
 INTENT_MATCH_STATUSES = {"matched", "needs_clarification", "unsupported"}
 INTENT_SOURCES = {"rule", "api"}
+INTENT_CONTRACT_FIELDS = {
+    "schema_version",
+    "intent",
+    "parameters",
+    "source",
+    "confidence",
+    "match_status",
+    "guidance_code",
+}
 SUPPORTED_DASHBOARD_INTENTS = {
     "net_vs_positive_ranking",
     "player_exclusion_impact",
@@ -127,6 +137,10 @@ def _intent_contract(intent, parameters=None, match_status="matched", guidance_c
     }
 
 
+def _field_names(fields):
+    return ", ".join(sorted(field if isinstance(field, str) else "<non-string>" for field in fields))
+
+
 def route_dashboard_question(question, known_alliance_names=None):
     """Return a JSON-serializable intent contract for a dashboard question."""
     normalized_question = normalize_question_text(question)
@@ -199,6 +213,9 @@ def validate_intent_contract(contract):
     """Validate and normalize an Ask Dashboard intent contract."""
     if not isinstance(contract, dict):
         raise ValueError("intent contract must be a dictionary")
+    unknown_fields = set(contract).difference(INTENT_CONTRACT_FIELDS)
+    if unknown_fields:
+        raise ValueError(f"unknown intent contract field(s): {_field_names(unknown_fields)}")
     normalized = dict(contract)
     if normalized.get("schema_version") != INTENT_CONTRACT_SCHEMA_VERSION:
         raise ValueError("unsupported intent contract schema_version")
@@ -256,16 +273,25 @@ def validate_intent_contract(contract):
 
     params = dict(parameters)
     if intent == "negative_share_change":
+        unknown_params = set(params).difference({"requested_direction"})
+        if unknown_params:
+            raise ValueError(f"unknown parameter field(s) for negative_share_change: {_field_names(unknown_params)}")
         direction = params.get("requested_direction", "unspecified")
         if direction not in NEGATIVE_SHARE_DIRECTIONS:
             raise ValueError("negative_share_change requested_direction is invalid")
         params["requested_direction"] = direction
     elif intent == "top_contributors":
+        unknown_params = set(params).difference({"alliance_names"})
+        if unknown_params:
+            raise ValueError(f"unknown parameter field(s) for top_contributors: {_field_names(unknown_params)}")
         names = params.get("alliance_names", [])
         if not isinstance(names, list) or not all(isinstance(name, str) and name.strip() for name in names):
             raise ValueError("top_contributors alliance_names must be a list of nonblank strings")
         params["alliance_names"] = list(names)
     elif intent == "alliance_exclusion_total_net":
+        unknown_params = set(params).difference({"excluded_alliances"})
+        if unknown_params:
+            raise ValueError(f"unknown parameter field(s) for alliance_exclusion_total_net: {_field_names(unknown_params)}")
         names = params.get("excluded_alliances", [])
         if not isinstance(names, list) or not all(isinstance(name, str) and name.strip() for name in names):
             raise ValueError("alliance_exclusion_total_net excluded_alliances must be a list of nonblank strings")
@@ -279,7 +305,12 @@ def validate_intent_contract(contract):
 
     normalized["parameters"] = params
     normalized["confidence"] = float(confidence)
-    return _json_value(normalized)
+    normalized = _json_value(normalized)
+    try:
+        json.dumps(normalized)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("intent contract must be JSON serializable") from exc
+    return normalized
 
 
 def _utc_timestamp(timestamp_utc=None):

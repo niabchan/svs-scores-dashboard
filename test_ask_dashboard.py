@@ -349,6 +349,91 @@ def test_validate_rejects_nonfinite_confidence_values(confidence):
         validate_intent_contract(contract)
 
 
+def test_validate_rejects_unknown_top_level_contract_field():
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    contract["unexpected"] = "payload"
+    with pytest.raises(ValueError, match="unknown intent contract field"):
+        validate_intent_contract(contract)
+
+
+@pytest.mark.parametrize(
+    "contract",
+    [
+        {
+            "schema_version": 1,
+            "intent": "top_contributors",
+            "parameters": {"alliance_names": ["AAA"], "unexpected": "payload"},
+            "source": "rule",
+            "confidence": 1.0,
+            "match_status": "matched",
+            "guidance_code": None,
+        },
+        {
+            "schema_version": 1,
+            "intent": "negative_share_change",
+            "parameters": {"requested_direction": "increase", "unexpected": "payload"},
+            "source": "rule",
+            "confidence": 1.0,
+            "match_status": "matched",
+            "guidance_code": None,
+        },
+        {
+            "schema_version": 1,
+            "intent": "alliance_exclusion_total_net",
+            "parameters": {"excluded_alliances": ["AAA"], "unexpected": "payload"},
+            "source": "rule",
+            "confidence": 1.0,
+            "match_status": "matched",
+            "guidance_code": None,
+        },
+    ],
+)
+def test_validate_rejects_unknown_parameter_fields(contract):
+    with pytest.raises(ValueError, match="unknown parameter field"):
+        validate_intent_contract(contract)
+
+
+def test_validate_rejects_parameters_for_intent_that_accepts_none():
+    contract = route_dashboard_question(QUESTION_NET_VS_POSITIVE, ["AAA"])
+    contract["parameters"] = {"unexpected": "payload"}
+    with pytest.raises(ValueError, match="does not accept parameters"):
+        validate_intent_contract(contract)
+
+
+def test_validate_rejects_non_json_serializable_top_level_value():
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    contract["unexpected"] = object()
+    with pytest.raises(ValueError, match="unknown intent contract field"):
+        validate_intent_contract(contract)
+
+
+def test_validate_rejects_non_json_serializable_nested_parameter_value():
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    contract["parameters"]["alliance_names"] = [object()]
+    with pytest.raises(ValueError, match="nonblank strings"):
+        validate_intent_contract(contract)
+
+
+def test_validate_wraps_json_serialization_failures(monkeypatch):
+    def fail_json_dumps(_value):
+        raise TypeError("not serializable")
+
+    monkeypatch.setattr("ask_dashboard.json.dumps", fail_json_dumps)
+    contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    with pytest.raises(ValueError, match="JSON serializable"):
+        validate_intent_contract(contract)
+
+
+def test_rule_and_api_contracts_remain_json_serializable():
+    rule_contract = validate_intent_contract(route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"]))
+    api_contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    api_contract["source"] = "api"
+    api_contract["confidence"] = 0.42
+    api_contract = validate_intent_contract(api_contract)
+    json.dumps(rule_contract)
+    json.dumps(api_contract)
+
+
 def test_answer_includes_json_serializable_routing_metadata():
     answer = ask("Who contributed most in AAA?")
     assert answer["routing"]["intent"] == "top_contributors"
