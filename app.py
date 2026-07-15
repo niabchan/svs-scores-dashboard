@@ -1,3 +1,6 @@
+import json
+import os
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -659,6 +662,7 @@ from ask_dashboard import (
     QUESTION_TOP_CONTRIBUTORS,
     SUGGESTED_QUESTIONS,
     calculate_dashboard_answer,
+    safely_append_question_log_record,
     render_dashboard_answer,
 )
 
@@ -747,8 +751,41 @@ def ask_dashboard_dialog():
             current_selected_players,
             alliance_options,
         )
+        records, logging_error = safely_append_question_log_record(
+            st.session_state.get("ask_dashboard_question_log", []),
+            answer,
+            selected_alliances=selected_alliances,
+            selected_net_status=selected_net_status,
+            selected_player_count=len(current_selected_players),
+            total_player_count=total_players_in_scope,
+            max_entries=100,
+        )
+        st.session_state["ask_dashboard_question_log"] = records
+        if logging_error:
+            st.session_state["ask_dashboard_logging_error"] = logging_error
+        else:
+            st.session_state.pop("ask_dashboard_logging_error", None)
         st.markdown("### Explanation")
         st.markdown(render_dashboard_answer(answer))
+
+    if os.environ.get("ASK_DASHBOARD_DEBUG_LOG", "").strip().lower() in {"1", "true", "yes", "on"}:
+        records = st.session_state.get("ask_dashboard_question_log", [])
+        with st.expander("Developer: Question analysis log", expanded=False):
+            st.caption(f"{len(records)} record(s) in the current Streamlit session.")
+            logging_error = st.session_state.get("ask_dashboard_logging_error")
+            if logging_error:
+                st.caption(f"Last logging diagnostic: {logging_error}")
+            if records:
+                st.dataframe(records, use_container_width=True)
+                st.download_button(
+                    "Download session log JSON",
+                    data=json.dumps(records, indent=2),
+                    file_name="ask_dashboard_question_log.json",
+                    mime="application/json",
+                )
+            if st.button("Clear question analysis log"):
+                st.session_state["ask_dashboard_question_log"] = []
+                st.rerun()
 
 
 if st.button("💬 Ask the Dashboard", type="primary"):

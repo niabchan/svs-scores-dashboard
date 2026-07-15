@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -96,6 +97,101 @@ def extract_alliance_names_from_question(question, alliance_names):
 
     return matches
 
+
+
+def _utc_timestamp(timestamp_utc=None):
+    if timestamp_utc is None:
+        return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    if isinstance(timestamp_utc, datetime):
+        if timestamp_utc.tzinfo is None or timestamp_utc.utcoffset() is None:
+            raise ValueError("timestamp_utc datetime must be timezone-aware")
+        return timestamp_utc.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return str(timestamp_utc)
+
+
+def _plain_string_list(values):
+    if values is None:
+        return []
+    return [str(_json_value(value)) for value in values]
+
+
+def build_question_log_record(
+    answer,
+    *,
+    selected_alliances=None,
+    selected_net_status=None,
+    selected_player_count=None,
+    total_player_count=None,
+    timestamp_utc=None,
+):
+    """Build a minimal JSON-serializable Ask Dashboard session log record."""
+    params = answer.get("parameters", {}) if isinstance(answer, dict) else {}
+    metrics = answer.get("metrics", {}) if isinstance(answer, dict) else {}
+    total_count = int(_json_value(total_player_count or 0))
+    selected_count = int(_json_value(selected_player_count if selected_player_count is not None else total_count))
+    excluded_count = max(total_count - selected_count, 0)
+    if isinstance(metrics, dict) and "excluded_player_count" in metrics:
+        excluded_count = int(_json_value(metrics.get("excluded_player_count") or excluded_count))
+    record = {
+        "schema_version": 1,
+        "timestamp_utc": _utc_timestamp(timestamp_utc),
+        "question": str(params.get("question", "")),
+        "normalized_question": normalize_question_text(params.get("question", "")),
+        "intent": str(answer.get("intent")) if isinstance(answer, dict) else None,
+        "status": str(answer.get("status")) if isinstance(answer, dict) else None,
+        "guidance_code": _json_value(answer.get("guidance_code")) if isinstance(answer, dict) else None,
+        "error_code": _json_value(answer.get("error_code")) if isinstance(answer, dict) else None,
+        "source": "rule",
+        "period": _json_value(answer.get("period")) if isinstance(answer, dict) else None,
+        "mentioned_alliances": _plain_string_list(params.get("mentioned_alliances")),
+        "requested_direction": _json_value(params.get("requested_direction")),
+        "selected_alliances": _plain_string_list(selected_alliances),
+        "selected_net_status": _plain_string_list(selected_net_status),
+        "selected_player_count": selected_count,
+        "total_player_count": total_count,
+        "excluded_player_count": excluded_count,
+    }
+    return _json_value(record)
+
+
+def append_question_log_record(records, record, max_entries=100):
+    """Append a question log record and keep only the newest bounded entries."""
+    if not isinstance(max_entries, int) or isinstance(max_entries, bool) or max_entries < 1:
+        raise ValueError("max_entries must be a positive integer")
+    updated = list(records or [])
+    updated.append(record)
+    return updated[-max_entries:]
+
+
+def safely_append_question_log_record(
+    records,
+    answer,
+    *,
+    selected_alliances=None,
+    selected_net_status=None,
+    selected_player_count=None,
+    total_player_count=None,
+    max_entries=100,
+    timestamp_utc=None,
+    record_builder=build_question_log_record,
+    record_appender=append_question_log_record,
+):
+    """Best-effort question logging that never raises to callers."""
+    valid_records = records if isinstance(records, list) else []
+    state_error = None if isinstance(records, list) or records is None else "question log state was reset"
+    try:
+        record = record_builder(
+            answer,
+            selected_alliances=selected_alliances,
+            selected_net_status=selected_net_status,
+            selected_player_count=selected_player_count,
+            total_player_count=total_player_count,
+            timestamp_utc=timestamp_utc,
+        )
+        updated_records = record_appender(valid_records, record, max_entries=max_entries)
+    except Exception as exc:
+        return valid_records, f"question logging skipped: {type(exc).__name__}"
+    return updated_records, state_error
 
 def _numeric_scope(data, columns):
     working_df = data[list(columns)].copy()

@@ -479,3 +479,171 @@ def test_renderer_uses_structured_values_without_recalculation():
     rendered = render_dashboard_answer(answer)
     assert "**+999,999**" in rendered
     assert "**+998,499**" in rendered
+
+
+def test_question_log_supported_question_context_and_json_serializable():
+    from ask_dashboard import build_question_log_record
+
+    answer = ask(
+        "Why is the negative percentage lower now?",
+        selected=["A1", "A2", "B2", "C1"],
+    )
+    record = build_question_log_record(
+        answer,
+        selected_alliances=["AAA", "BBB"],
+        selected_net_status=["Positive", "Negative"],
+        selected_player_count=4,
+        total_player_count=5,
+        timestamp_utc="2026-07-15T06:30:00Z",
+    )
+
+    assert record == {
+        "schema_version": 1,
+        "timestamp_utc": "2026-07-15T06:30:00Z",
+        "question": "Why is the negative percentage lower now?",
+        "normalized_question": "why is the negative percentage lower now",
+        "intent": "negative_share_change",
+        "status": "ok",
+        "guidance_code": None,
+        "error_code": None,
+        "source": "rule",
+        "period": "SVS Test",
+        "mentioned_alliances": [],
+        "requested_direction": "decrease",
+        "selected_alliances": ["AAA", "BBB"],
+        "selected_net_status": ["Positive", "Negative"],
+        "selected_player_count": 4,
+        "total_player_count": 5,
+        "excluded_player_count": 1,
+    }
+    json.dumps(record)
+
+
+def test_question_log_unsupported_question_guidance_code():
+    from ask_dashboard import build_question_log_record
+
+    record = build_question_log_record(
+        ask("Predict the next SVS result."),
+        timestamp_utc="2026-07-15T06:30:00Z",
+    )
+    assert record["intent"] == "unsupported_question"
+    assert record["status"] == "guidance"
+    assert record["guidance_code"] == "unsupported_question"
+
+
+def test_question_log_preserves_mentioned_alliances_and_period():
+    from ask_dashboard import build_question_log_record
+
+    data = sample_data().replace({"AAA": "SnS"})
+    answer = ask("Show the best contributors in SnS.", data=data)
+    record = build_question_log_record(answer, timestamp_utc="2026-07-15T06:30:00Z")
+    assert record["mentioned_alliances"] == ["SnS"]
+    assert record["period"] == "SVS Test"
+
+
+def test_question_log_auto_timestamp_is_utc_and_json_serializable():
+    from datetime import datetime, timezone
+    from ask_dashboard import build_question_log_record
+
+    record = build_question_log_record(ask(QUESTION_NET_VS_POSITIVE))
+    timestamp = record["timestamp_utc"]
+    assert timestamp.endswith("Z")
+    parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    assert parsed.tzinfo is not None
+    assert parsed.utcoffset() == timezone.utc.utcoffset(parsed)
+    json.dumps(record)
+
+
+def test_question_log_excludes_dataframes_metrics_rankings_and_player_lists():
+    from ask_dashboard import build_question_log_record
+
+    answer = ask(QUESTION_TOP_CONTRIBUTORS)
+    record = build_question_log_record(
+        answer,
+        selected_player_count=3,
+        total_player_count=5,
+        timestamp_utc="2026-07-15T06:30:00Z",
+    )
+    encoded = json.dumps(record)
+    forbidden_keys = {"metrics", "rankings", "selected_players", "excluded_players", "players"}
+    assert forbidden_keys.isdisjoint(record)
+    assert "DataFrame" not in encoded
+    assert "Series" not in encoded
+    assert "A1" not in encoded and "B1" not in encoded and "C1" not in encoded
+
+
+def test_append_question_log_record_keeps_newest_records():
+    from ask_dashboard import append_question_log_record
+
+    records = []
+    for index in range(5):
+        records = append_question_log_record(records, {"index": index}, max_entries=3)
+    assert records == [{"index": 2}, {"index": 3}, {"index": 4}]
+
+
+@pytest.mark.parametrize("max_entries", [0, -1, 1.5, True, "3"])
+def test_append_question_log_record_rejects_invalid_limits(max_entries):
+    from ask_dashboard import append_question_log_record
+
+    with pytest.raises(ValueError, match="positive integer"):
+        append_question_log_record([], {"index": 1}, max_entries=max_entries)
+
+
+def test_safe_question_log_helper_resets_malformed_existing_state():
+    from ask_dashboard import safely_append_question_log_record
+
+    records, logging_error = safely_append_question_log_record(
+        {"unexpected": "state"},
+        ask(QUESTION_NET_VS_POSITIVE),
+        selected_alliances=["AAA"],
+        selected_net_status=["Positive", "Negative"],
+        selected_player_count=5,
+        total_player_count=5,
+        timestamp_utc="2026-07-15T06:30:00Z",
+    )
+
+    assert isinstance(records, list)
+    assert len(records) == 1
+    assert records[0]["intent"] == "net_vs_positive_ranking"
+    assert logging_error == "question log state was reset"
+    assert render_dashboard_answer(ask(QUESTION_NET_VS_POSITIVE))
+
+
+def test_safe_question_log_helper_swallows_append_failure_for_rendering_path():
+    from ask_dashboard import safely_append_question_log_record
+
+    answer = ask(QUESTION_NET_VS_POSITIVE)
+
+    def failing_appender(records, record, max_entries=100):
+        raise RuntimeError("append failed")
+
+    records, logging_error = safely_append_question_log_record(
+        [],
+        answer,
+        record_appender=failing_appender,
+        timestamp_utc="2026-07-15T06:30:00Z",
+    )
+
+    assert records == []
+    assert logging_error == "question logging skipped: RuntimeError"
+    assert "Under the current sidebar filters" in render_dashboard_answer(answer)
+
+
+def test_safe_question_log_helper_swallows_build_failure_for_rendering_path():
+    from ask_dashboard import safely_append_question_log_record
+
+    answer = ask(QUESTION_NET_VS_POSITIVE)
+
+    def failing_builder(answer, **kwargs):
+        raise RuntimeError("build failed")
+
+    records, logging_error = safely_append_question_log_record(
+        [],
+        answer,
+        record_builder=failing_builder,
+        timestamp_utc="2026-07-15T06:30:00Z",
+    )
+
+    assert records == []
+    assert logging_error == "question logging skipped: RuntimeError"
+    assert "Under the current sidebar filters" in render_dashboard_answer(answer)
