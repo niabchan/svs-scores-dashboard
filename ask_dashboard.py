@@ -1,3 +1,4 @@
+import math
 import re
 import unicodedata
 from datetime import datetime, timezone
@@ -208,8 +209,14 @@ def validate_intent_contract(contract):
     if source not in INTENT_SOURCES:
         raise ValueError("invalid intent source")
     confidence = normalized.get("confidence")
-    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or confidence < 0 or confidence > 1:
-        raise ValueError("confidence must be numeric between 0 and 1")
+    if (
+        isinstance(confidence, bool)
+        or not isinstance(confidence, (int, float))
+        or not math.isfinite(confidence)
+        or confidence < 0
+        or confidence > 1
+    ):
+        raise ValueError("confidence must be finite numeric between 0 and 1")
     match_status = normalized.get("match_status")
     if match_status not in INTENT_MATCH_STATUSES:
         raise ValueError("invalid match_status")
@@ -223,8 +230,29 @@ def validate_intent_contract(contract):
         raise ValueError("matched contracts cannot include guidance_code")
     if match_status in {"needs_clarification", "unsupported"} and not guidance_code:
         raise ValueError("clarification and unsupported contracts require guidance_code")
-    if match_status == "unsupported" and confidence != 0.0:
-        raise ValueError("unsupported contracts must use confidence 0.0")
+
+    if intent == "unsupported_question":
+        if match_status != "unsupported":
+            raise ValueError("unsupported_question requires unsupported match_status")
+        if guidance_code != "unsupported_question":
+            raise ValueError("unsupported_question requires unsupported_question guidance_code")
+        if confidence != 0.0:
+            raise ValueError("unsupported_question requires confidence 0.0")
+        if parameters:
+            raise ValueError("unsupported_question parameters must be empty")
+    elif match_status == "unsupported":
+        raise ValueError("unsupported match_status requires unsupported_question intent")
+
+    if match_status == "needs_clarification":
+        if intent != "alliance_exclusion_total_net":
+            raise ValueError("needs_clarification is only supported for alliance_exclusion_total_net")
+        if guidance_code != "missing_alliance_name":
+            raise ValueError("alliance exclusion clarification requires missing_alliance_name")
+
+    if source == "rule":
+        expected_confidence = 0.0 if match_status == "unsupported" else 1.0
+        if confidence != expected_confidence:
+            raise ValueError("rule contracts must use deterministic confidence values")
 
     params = dict(parameters)
     if intent == "negative_share_change":
@@ -234,15 +262,17 @@ def validate_intent_contract(contract):
         params["requested_direction"] = direction
     elif intent == "top_contributors":
         names = params.get("alliance_names", [])
-        if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
-            raise ValueError("top_contributors alliance_names must be a list of strings")
+        if not isinstance(names, list) or not all(isinstance(name, str) and name.strip() for name in names):
+            raise ValueError("top_contributors alliance_names must be a list of nonblank strings")
         params["alliance_names"] = list(names)
     elif intent == "alliance_exclusion_total_net":
         names = params.get("excluded_alliances", [])
-        if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
-            raise ValueError("alliance_exclusion_total_net excluded_alliances must be a list of strings")
-        if match_status == "needs_clarification" and guidance_code != "missing_alliance_name":
-            raise ValueError("alliance exclusion clarification requires missing_alliance_name")
+        if not isinstance(names, list) or not all(isinstance(name, str) and name.strip() for name in names):
+            raise ValueError("alliance_exclusion_total_net excluded_alliances must be a list of nonblank strings")
+        if match_status == "needs_clarification" and names:
+            raise ValueError("alliance exclusion clarification cannot include excluded alliances")
+        if match_status == "matched" and not names:
+            raise ValueError("matched alliance_exclusion_total_net requires excluded_alliances")
         params["excluded_alliances"] = list(names)
     elif params:
         raise ValueError(f"{intent} does not accept parameters")
@@ -614,6 +644,11 @@ def calculate_top_contributors(data, svs_period=None, alliance_names=None):
         groups.append({"alliance": alliance, "positive_total": positive_total, "net_total": players["net_score"].sum(), "top_n": top_n, "ranking_description": ("positive contributors by net score" if not positive_players.empty else "players with the highest net scores; no player has a positive net score in this scope"), "players": [{**row._asdict(), "share_of_positive": (row.net_score / positive_total * 100 if row.net_score > 0 and positive_total > 0 else None)} for row in ranked.itertuples(index=False)]})
     return _base_result(intent, "ok", svs_period, parameters=params, metrics={"alliance_count": len(alliances), "top_n": top_n}, rankings={"alliances": groups})
 
+def _attach_routing(result, contract):
+    result["routing"] = contract
+    return result
+
+
 def execute_dashboard_intent(contract, data, svs_period=None, selected_player_names=None, known_alliance_names=None):
     """Validate and execute a dashboard intent contract."""
     contract = validate_intent_contract(contract)
@@ -621,33 +656,41 @@ def execute_dashboard_intent(contract, data, svs_period=None, selected_player_na
     params = contract["parameters"]
 
     if contract["match_status"] == "unsupported":
-        return _base_result("unsupported_question", "guidance", svs_period, contract["guidance_code"])
+        return _attach_routing(
+            _base_result("unsupported_question", "guidance", svs_period, contract["guidance_code"]),
+            contract,
+        )
     if contract["match_status"] == "needs_clarification":
         result_params = {}
         if intent == "alliance_exclusion_total_net":
             result_params["excluded_alliances"] = params.get("excluded_alliances", [])
             if known_alliance_names is not None:
                 result_params["available_alliances"] = list(map(str, known_alliance_names))
-        return _base_result(intent, "guidance", svs_period, contract["guidance_code"], parameters=result_params)
+        return _attach_routing(
+            _base_result(intent, "guidance", svs_period, contract["guidance_code"], parameters=result_params),
+            contract,
+        )
 
     if intent == "net_vs_positive_ranking":
-        return calculate_net_vs_positive_ranking(data, svs_period)
-    if intent == "player_exclusion_impact":
-        return calculate_exclusion_impact(data, selected_player_names, svs_period)
-    if intent == "negative_share_change":
-        return calculate_negative_percentage_change(
+        result = calculate_net_vs_positive_ranking(data, svs_period)
+    elif intent == "player_exclusion_impact":
+        result = calculate_exclusion_impact(data, selected_player_names, svs_period)
+    elif intent == "negative_share_change":
+        result = calculate_negative_percentage_change(
             data,
             selected_player_names,
             svs_period,
             params.get("requested_direction", "unspecified"),
         )
-    if intent == "top_contributors":
-        return calculate_top_contributors(data, svs_period, alliance_names=params.get("alliance_names") or None)
-    if intent == "alliance_exclusion_total_net":
-        return calculate_total_net_excluding_alliances(data, params.get("excluded_alliances", []), svs_period)
-    if intent == "net_score_leader_summary":
-        return calculate_net_score_leader_summary(data, svs_period)
-    raise ValueError(f"unknown intent: {intent}")
+    elif intent == "top_contributors":
+        result = calculate_top_contributors(data, svs_period, alliance_names=params.get("alliance_names") or None)
+    elif intent == "alliance_exclusion_total_net":
+        result = calculate_total_net_excluding_alliances(data, params.get("excluded_alliances", []), svs_period)
+    elif intent == "net_score_leader_summary":
+        result = calculate_net_score_leader_summary(data, svs_period)
+    else:
+        raise ValueError(f"unknown intent: {intent}")
+    return _attach_routing(result, contract)
 
 
 def calculate_dashboard_answer(question, data, svs_period=None, selected_player_names=None, known_alliance_names=None):
@@ -666,7 +709,6 @@ def calculate_dashboard_answer(question, data, svs_period=None, selected_player_
         known_alliance_names,
     )
     result["parameters"] = {**common, **result.get("parameters", {})}
-    result["routing"] = validated_contract
     return result
 
 def _period_text(period, prefix=" in ", bold=False):
