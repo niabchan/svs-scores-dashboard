@@ -661,9 +661,8 @@ from ask_dashboard import (
     QUESTION_NET_VS_POSITIVE,
     QUESTION_TOP_CONTRIBUTORS,
     SUGGESTED_QUESTIONS,
-    append_question_log_record,
-    build_question_log_record,
     calculate_dashboard_answer,
+    safely_append_question_log_record,
     render_dashboard_answer,
 )
 
@@ -752,18 +751,20 @@ def ask_dashboard_dialog():
             current_selected_players,
             alliance_options,
         )
-        record = build_question_log_record(
+        records, logging_error = safely_append_question_log_record(
+            st.session_state.get("ask_dashboard_question_log", []),
             answer,
             selected_alliances=selected_alliances,
             selected_net_status=selected_net_status,
             selected_player_count=len(current_selected_players),
             total_player_count=total_players_in_scope,
-        )
-        st.session_state["ask_dashboard_question_log"] = append_question_log_record(
-            st.session_state.get("ask_dashboard_question_log", []),
-            record,
             max_entries=100,
         )
+        st.session_state["ask_dashboard_question_log"] = records
+        if logging_error:
+            st.session_state["ask_dashboard_logging_error"] = logging_error
+        else:
+            st.session_state.pop("ask_dashboard_logging_error", None)
         st.markdown("### Explanation")
         st.markdown(render_dashboard_answer(answer))
 
@@ -771,6 +772,9 @@ def ask_dashboard_dialog():
         records = st.session_state.get("ask_dashboard_question_log", [])
         with st.expander("Developer: Question analysis log", expanded=False):
             st.caption(f"{len(records)} record(s) in the current Streamlit session.")
+            logging_error = st.session_state.get("ask_dashboard_logging_error")
+            if logging_error:
+                st.caption(f"Last logging diagnostic: {logging_error}")
             if records:
                 st.dataframe(records, use_container_width=True)
                 st.download_button(

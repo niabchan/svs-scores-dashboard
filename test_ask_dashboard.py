@@ -587,3 +587,63 @@ def test_append_question_log_record_rejects_invalid_limits(max_entries):
 
     with pytest.raises(ValueError, match="positive integer"):
         append_question_log_record([], {"index": 1}, max_entries=max_entries)
+
+
+def test_safe_question_log_helper_resets_malformed_existing_state():
+    from ask_dashboard import safely_append_question_log_record
+
+    records, logging_error = safely_append_question_log_record(
+        {"unexpected": "state"},
+        ask(QUESTION_NET_VS_POSITIVE),
+        selected_alliances=["AAA"],
+        selected_net_status=["Positive", "Negative"],
+        selected_player_count=5,
+        total_player_count=5,
+        timestamp_utc="2026-07-15T06:30:00Z",
+    )
+
+    assert isinstance(records, list)
+    assert len(records) == 1
+    assert records[0]["intent"] == "net_vs_positive_ranking"
+    assert logging_error == "question log state was reset"
+    assert render_dashboard_answer(ask(QUESTION_NET_VS_POSITIVE))
+
+
+def test_safe_question_log_helper_swallows_append_failure_for_rendering_path():
+    from ask_dashboard import safely_append_question_log_record
+
+    answer = ask(QUESTION_NET_VS_POSITIVE)
+
+    def failing_appender(records, record, max_entries=100):
+        raise RuntimeError("append failed")
+
+    records, logging_error = safely_append_question_log_record(
+        [],
+        answer,
+        record_appender=failing_appender,
+        timestamp_utc="2026-07-15T06:30:00Z",
+    )
+
+    assert records == []
+    assert logging_error == "question logging skipped: RuntimeError"
+    assert "Under the current sidebar filters" in render_dashboard_answer(answer)
+
+
+def test_safe_question_log_helper_swallows_build_failure_for_rendering_path():
+    from ask_dashboard import safely_append_question_log_record
+
+    answer = ask(QUESTION_NET_VS_POSITIVE)
+
+    def failing_builder(answer, **kwargs):
+        raise RuntimeError("build failed")
+
+    records, logging_error = safely_append_question_log_record(
+        [],
+        answer,
+        record_builder=failing_builder,
+        timestamp_utc="2026-07-15T06:30:00Z",
+    )
+
+    assert records == []
+    assert logging_error == "question logging skipped: RuntimeError"
+    assert "Under the current sidebar filters" in render_dashboard_answer(answer)

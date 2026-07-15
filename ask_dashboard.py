@@ -162,6 +162,37 @@ def append_question_log_record(records, record, max_entries=100):
     updated.append(record)
     return updated[-max_entries:]
 
+
+def safely_append_question_log_record(
+    records,
+    answer,
+    *,
+    selected_alliances=None,
+    selected_net_status=None,
+    selected_player_count=None,
+    total_player_count=None,
+    max_entries=100,
+    timestamp_utc=None,
+    record_builder=build_question_log_record,
+    record_appender=append_question_log_record,
+):
+    """Best-effort question logging that never raises to callers."""
+    valid_records = records if isinstance(records, list) else []
+    state_error = None if isinstance(records, list) or records is None else "question log state was reset"
+    try:
+        record = record_builder(
+            answer,
+            selected_alliances=selected_alliances,
+            selected_net_status=selected_net_status,
+            selected_player_count=selected_player_count,
+            total_player_count=total_player_count,
+            timestamp_utc=timestamp_utc,
+        )
+        updated_records = record_appender(valid_records, record, max_entries=max_entries)
+    except Exception as exc:
+        return valid_records, f"question logging skipped: {type(exc).__name__}"
+    return updated_records, state_error
+
 def _numeric_scope(data, columns):
     working_df = data[list(columns)].copy()
     for column in ["score_gained", "score_lost", "net_score"]:
