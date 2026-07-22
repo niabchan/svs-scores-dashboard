@@ -662,9 +662,68 @@ from ask_dashboard import (
     QUESTION_TOP_CONTRIBUTORS,
     SUGGESTED_QUESTIONS,
     calculate_dashboard_answer,
+    route_dashboard_question_hybrid,
     safely_append_question_log_record,
     render_dashboard_answer,
 )
+
+
+def _truthy_env(name):
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _secret_or_env(name):
+    try:
+        value = st.secrets.get(name)
+    except Exception:
+        value = None
+    return value or os.environ.get(name)
+
+
+def _build_ai_intent_router():
+    if not _truthy_env("ASK_DASHBOARD_AI_ROUTING"):
+        st.session_state.pop("ask_dashboard_ai_diagnostic", None)
+        return None
+
+    api_key = _secret_or_env("OPENAI_API_KEY")
+    model = _secret_or_env("OPENAI_INTENT_MODEL")
+    if not api_key or not model:
+        st.session_state["ask_dashboard_ai_diagnostic"] = "api_unavailable"
+        return lambda question, known: route_dashboard_question_hybrid(
+            question,
+            known,
+            ai_enabled=True,
+            ai_extractor=None,
+        )
+
+    try:
+        from openai import OpenAI
+        from openai_intent import extract_intent_contract_with_openai
+    except Exception:
+        st.session_state["ask_dashboard_ai_diagnostic"] = "api_unavailable"
+        return lambda question, known: route_dashboard_question_hybrid(
+            question,
+            known,
+            ai_enabled=True,
+            ai_extractor=None,
+        )
+
+    client = OpenAI(api_key=api_key)
+
+    def extractor(question, known_alliance_names):
+        return extract_intent_contract_with_openai(
+            question,
+            known_alliance_names,
+            client=client,
+            model=model,
+        )
+
+    return lambda question, known: route_dashboard_question_hybrid(
+        question,
+        known,
+        ai_enabled=True,
+        ai_extractor=extractor,
+    )
 
 
 def get_current_selected_player_names(data):
@@ -750,7 +809,18 @@ def ask_dashboard_dialog():
             selected_svs,
             current_selected_players,
             alliance_options,
+            intent_router=_build_ai_intent_router(),
         )
+        routing = answer.get("routing", {})
+        st.session_state["ask_dashboard_last_routing"] = {
+            "source": routing.get("source", "rule"),
+            "ai_attempted": bool(routing.get("ai_attempted", False)),
+            "diagnostic_code": routing.get("diagnostic_code"),
+        }
+        if routing.get("diagnostic_code"):
+            st.session_state["ask_dashboard_ai_diagnostic"] = routing.get("diagnostic_code")
+        elif routing.get("ai_attempted"):
+            st.session_state.pop("ask_dashboard_ai_diagnostic", None)
         records, logging_error = safely_append_question_log_record(
             st.session_state.get("ask_dashboard_question_log", []),
             answer,
@@ -775,6 +845,15 @@ def ask_dashboard_dialog():
             logging_error = st.session_state.get("ask_dashboard_logging_error")
             if logging_error:
                 st.caption(f"Last logging diagnostic: {logging_error}")
+            last_routing = st.session_state.get("ask_dashboard_last_routing", {})
+            if records:
+                last_record = records[-1]
+                st.caption(f"Routing source: {last_routing.get('source') or last_record.get('source', 'rule')}")
+            if last_routing:
+                st.caption(f"AI attempted: {'yes' if last_routing.get('ai_attempted') else 'no'}")
+            ai_diagnostic = st.session_state.get("ask_dashboard_ai_diagnostic")
+            if ai_diagnostic:
+                st.caption(f"AI diagnostic: {ai_diagnostic}")
             if records:
                 st.dataframe(records, use_container_width=True)
                 st.download_button(

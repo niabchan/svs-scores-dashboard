@@ -1060,3 +1060,273 @@ def test_safe_question_log_helper_swallows_build_failure_for_rendering_path():
     assert records == []
     assert logging_error == "question logging skipped: RuntimeError"
     assert "Under the current sidebar filters" in render_dashboard_answer(answer)
+
+
+def test_hybrid_matched_rule_never_calls_ai():
+    from ask_dashboard import route_dashboard_question_hybrid
+
+    def fail_ai(*_args):
+        raise AssertionError("AI should not be called")
+
+    result = route_dashboard_question_hybrid(
+        QUESTION_TOP_CONTRIBUTORS,
+        ["AAA"],
+        ai_enabled=True,
+        ai_extractor=fail_ai,
+    )
+    assert result["contract"]["source"] == "rule"
+    assert result["contract"]["match_status"] == "matched"
+    assert result["ai_attempted"] is False
+    assert_json_serializable(result)
+
+
+def test_hybrid_clarification_rule_never_calls_ai():
+    from ask_dashboard import route_dashboard_question_hybrid
+
+    def fail_ai(*_args):
+        raise AssertionError("AI should not be called")
+
+    result = route_dashboard_question_hybrid(
+        "What is the total net score without that alliance?",
+        ["AAA"],
+        ai_enabled=True,
+        ai_extractor=fail_ai,
+    )
+    assert result["contract"]["match_status"] == "needs_clarification"
+    assert result["ai_attempted"] is False
+
+
+def test_hybrid_unsupported_does_not_call_ai_when_disabled():
+    from ask_dashboard import route_dashboard_question_hybrid
+
+    calls = []
+    result = route_dashboard_question_hybrid(
+        "Predict the next SVS result.",
+        ["AAA"],
+        ai_enabled=False,
+        ai_extractor=lambda *_args: calls.append(True),
+    )
+    assert calls == []
+    assert result["contract"]["match_status"] == "unsupported"
+    assert result["ai_attempted"] is False
+
+
+def test_build_api_intent_contract_maps_only_allowed_parameters():
+    from openai_intent import build_api_intent_contract
+
+    contract = build_api_intent_contract(
+        {
+            "intent": "negative_share_change",
+            "requested_direction": "decrease",
+            "alliance_names": ["AAA"],
+            "excluded_alliances": ["BBB"],
+            "match_status": "matched",
+            "guidance_code": None,
+            "confidence": 0.7,
+        }
+    )
+    assert contract["source"] == "api"
+    assert contract["parameters"] == {"requested_direction": "decrease"}
+    assert validate_intent_contract(contract) == contract
+    assert_json_serializable(contract)
+
+
+@pytest.mark.parametrize(
+    "candidate",
+    [
+        "not a dict",
+        {
+            "intent": "alliance_exclusion_total_net",
+            "requested_direction": "unspecified",
+            "alliance_names": [],
+            "excluded_alliances": [],
+            "match_status": "matched",
+            "guidance_code": None,
+            "confidence": 0.8,
+        },
+        {
+            "intent": "unsupported_question",
+            "requested_direction": "unspecified",
+            "alliance_names": [],
+            "excluded_alliances": [],
+            "match_status": "matched",
+            "guidance_code": None,
+            "confidence": 0.8,
+        },
+    ],
+)
+def test_build_api_intent_contract_rejects_invalid_output(candidate):
+    from openai_intent import build_api_intent_contract
+
+    with pytest.raises(ValueError):
+        build_api_intent_contract(candidate)
+
+
+def test_successful_ai_fallback_executes_existing_contract_and_logs_api():
+    from openai_intent import build_api_intent_contract
+
+    def ai_extractor(_question, _known):
+        return build_api_intent_contract(
+            {
+                "intent": "top_contributors",
+                "requested_direction": "unspecified",
+                "alliance_names": ["AAA"],
+                "excluded_alliances": [],
+                "match_status": "matched",
+                "guidance_code": None,
+                "confidence": 0.66,
+            }
+        )
+
+    answer = calculate_dashboard_answer(
+        "List star performers for AAA",
+        sample_data(),
+        "SVS Test",
+        known_alliance_names=["AAA", "BBB"],
+        intent_router=lambda question, known: __import__("ask_dashboard").route_dashboard_question_hybrid(
+            question,
+            known,
+            ai_enabled=True,
+            ai_extractor=ai_extractor,
+        ),
+    )
+    assert answer["intent"] == "top_contributors"
+    assert answer["routing"]["source"] == "api"
+    assert answer["routing"]["ai_attempted"] is True
+    record = __import__("ask_dashboard").build_question_log_record(answer, timestamp_utc="2026-07-15T06:30:00Z")
+    assert record["source"] == "api"
+
+
+@pytest.mark.parametrize("exc", [Exception("secret raw provider error"), TimeoutError("slow")])
+def test_hybrid_ai_failure_returns_safe_rule_fallback(exc):
+    from ask_dashboard import route_dashboard_question_hybrid
+
+    def ai_extractor(*_args):
+        raise exc
+
+    result = route_dashboard_question_hybrid(
+        "Predict the next SVS result.",
+        ["AAA"],
+        ai_enabled=True,
+        ai_extractor=ai_extractor,
+    )
+    assert result["contract"]["source"] == "rule"
+    assert result["contract"]["match_status"] == "unsupported"
+    assert result["ai_attempted"] is True
+    assert result["ai_succeeded"] is False
+    assert result["diagnostic_code"] == "api_invalid_output"
+    assert "secret raw provider error" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("diagnostic", ["api_unavailable", "api_refusal", "api_incomplete", "api_invalid_output"])
+def test_hybrid_preserves_safe_ai_diagnostics(diagnostic):
+    from ask_dashboard import route_dashboard_question_hybrid
+    from openai_intent import OpenAIIntentError
+
+    def ai_extractor(*_args):
+        raise OpenAIIntentError(diagnostic)
+
+    result = route_dashboard_question_hybrid(
+        "Predict the next SVS result.",
+        ["AAA"],
+        ai_enabled=True,
+        ai_extractor=ai_extractor,
+    )
+    assert result["contract"]["source"] == "rule"
+    assert result["diagnostic_code"] == diagnostic
+
+
+def test_invalid_ai_contract_does_not_invoke_calculator(monkeypatch):
+    from ask_dashboard import route_dashboard_question_hybrid
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("calculator should not be invoked")
+
+    monkeypatch.setattr("ask_dashboard.calculate_top_contributors", fail_if_called)
+    bad_contract = route_dashboard_question(QUESTION_TOP_CONTRIBUTORS, ["AAA"])
+    bad_contract["source"] = "api"
+    bad_contract["confidence"] = 0.5
+    bad_contract["parameters"]["alliance_names"] = [""]
+    result = route_dashboard_question_hybrid(
+        "Predict the next SVS result.",
+        ["AAA"],
+        ai_enabled=True,
+        ai_extractor=lambda *_args: bad_contract,
+    )
+    answer = execute_dashboard_intent(result["contract"], sample_data())
+    assert answer["intent"] == "unsupported_question"
+
+
+class FakeResponse:
+    status = "completed"
+    incomplete_details = None
+
+    def __init__(self, output_text):
+        self.output_text = output_text
+
+
+class FakeResponses:
+    def __init__(self):
+        self.kwargs = None
+
+    def create(self, **kwargs):
+        self.kwargs = kwargs
+        return FakeResponse(
+            json.dumps(
+                {
+                    "intent": "top_contributors",
+                    "requested_direction": "unspecified",
+                    "alliance_names": ["AAA"],
+                    "excluded_alliances": [],
+                    "match_status": "matched",
+                    "guidance_code": None,
+                    "confidence": 0.5,
+                }
+            )
+        )
+
+
+class FakeClient:
+    def __init__(self):
+        self.responses = FakeResponses()
+
+
+def test_openai_extractor_data_minimization_and_strict_schema():
+    from openai_intent import extract_intent_contract_with_openai
+
+    client = FakeClient()
+    contract = extract_intent_contract_with_openai(
+        "Who are AAA stars?",
+        ["AAA", "BBB"],
+        client=client,
+        model="intent-test-model",
+    )
+    kwargs = client.responses.kwargs
+    encoded_input = json.dumps(kwargs["input"])
+    assert contract["source"] == "api"
+    assert kwargs["store"] is False
+    assert kwargs["text"]["format"]["strict"] is True
+    assert kwargs["text"]["format"]["schema"]["additionalProperties"] is False
+    assert "Who are AAA stars?" in encoded_input
+    assert "AAA" in encoded_input and "BBB" in encoded_input
+    assert "score_gained" not in encoded_input
+    assert "net_score" not in encoded_input
+    assert "DataFrame" not in encoded_input
+    assert "rankings" not in encoded_input
+    assert "player_name" not in encoded_input
+    assert "selected_players" not in encoded_input
+
+
+def test_openai_extractor_malformed_json_raises_safe_code():
+    from openai_intent import AI_DIAGNOSTIC_API_INVALID_OUTPUT, OpenAIIntentError, extract_intent_contract_with_openai
+
+    class BadResponses:
+        def create(self, **_kwargs):
+            return FakeResponse("not-json")
+
+    class BadClient:
+        responses = BadResponses()
+
+    with pytest.raises(OpenAIIntentError) as error:
+        extract_intent_contract_with_openai("Question", ["AAA"], client=BadClient(), model="m")
+    assert error.value.diagnostic_code == AI_DIAGNOSTIC_API_INVALID_OUTPUT
