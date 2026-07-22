@@ -1,2 +1,3 @@
 pandas
 pytest
+openai>=2.46.0,<3.0.0

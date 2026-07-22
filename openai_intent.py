@@ -18,6 +18,16 @@ AI_DIAGNOSTIC_API_REFUSAL = "api_refusal"
 AI_DIAGNOSTIC_API_INCOMPLETE = "api_incomplete"
 AI_DIAGNOSTIC_API_INVALID_OUTPUT = "api_invalid_output"
 
+AI_INTENT_CANDIDATE_FIELDS = {
+    "intent",
+    "requested_direction",
+    "alliance_names",
+    "excluded_alliances",
+    "match_status",
+    "guidance_code",
+    "confidence",
+}
+
 GUIDANCE_CODES = [None, "missing_alliance_name", "unsupported_question"]
 AI_INTENT_CANDIDATE_SCHEMA = {
     "type": "object",
@@ -30,15 +40,7 @@ AI_INTENT_CANDIDATE_SCHEMA = {
         "guidance_code": {"type": ["string", "null"], "enum": GUIDANCE_CODES},
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
     },
-    "required": [
-        "intent",
-        "requested_direction",
-        "alliance_names",
-        "excluded_alliances",
-        "match_status",
-        "guidance_code",
-        "confidence",
-    ],
+    "required": sorted(AI_INTENT_CANDIDATE_FIELDS),
     "additionalProperties": False,
 }
 
@@ -61,10 +63,59 @@ class OpenAIIntentError(Exception):
         self.diagnostic_code = diagnostic_code
 
 
-def build_api_intent_contract(candidate):
-    """Build and validate an API-sourced intent contract from a plain candidate."""
+def build_openai_client_options(api_key):
+    """Return bounded OpenAI client options without constructing a client."""
+    return {"api_key": api_key, "timeout": 10.0, "max_retries": 0}
+
+
+def _field_names(fields):
+    return ", ".join(sorted(str(field) for field in fields))
+
+
+def _validate_candidate_shape(candidate):
     if not isinstance(candidate, dict):
         raise ValueError("AI intent candidate must be a dictionary")
+    fields = set(candidate)
+    missing = AI_INTENT_CANDIDATE_FIELDS.difference(fields)
+    if missing:
+        raise ValueError(f"missing AI intent candidate field(s): {_field_names(missing)}")
+    unknown = fields.difference(AI_INTENT_CANDIDATE_FIELDS)
+    if unknown:
+        raise ValueError(f"unknown AI intent candidate field(s): {_field_names(unknown)}")
+    if not isinstance(candidate["intent"], str):
+        raise ValueError("AI intent candidate intent must be a string")
+    if not isinstance(candidate["requested_direction"], str):
+        raise ValueError("AI intent candidate requested_direction must be a string")
+    for field in ["alliance_names", "excluded_alliances"]:
+        if not isinstance(candidate[field], list) or not all(isinstance(name, str) for name in candidate[field]):
+            raise ValueError(f"AI intent candidate {field} must be a list of strings")
+    if not isinstance(candidate["match_status"], str):
+        raise ValueError("AI intent candidate match_status must be a string")
+    if candidate["guidance_code"] is not None and not isinstance(candidate["guidance_code"], str):
+        raise ValueError("AI intent candidate guidance_code must be a string or None")
+    if isinstance(candidate["confidence"], bool) or not isinstance(candidate["confidence"], (int, float)):
+        raise ValueError("AI intent candidate confidence must be numeric")
+
+
+def canonicalize_candidate_alliances(candidate, known_alliance_names):
+    """Return a copy with AI-extracted alliances verified against known names."""
+    _validate_candidate_shape(candidate)
+    canonical_by_casefold = {str(name).casefold(): str(name) for name in (known_alliance_names or [])}
+    normalized = dict(candidate)
+    for field in ["alliance_names", "excluded_alliances"]:
+        canonical_values = []
+        for name in candidate[field]:
+            canonical = canonical_by_casefold.get(name.casefold())
+            if canonical is None:
+                raise ValueError("AI intent candidate alliance name is outside the known allowlist")
+            canonical_values.append(canonical)
+        normalized[field] = canonical_values
+    return normalized
+
+
+def build_api_intent_contract(candidate):
+    """Build and validate an API-sourced intent contract from a plain candidate."""
+    _validate_candidate_shape(candidate)
 
     intent = candidate.get("intent")
     parameters = {}
@@ -169,6 +220,7 @@ def extract_intent_contract_with_openai(question, known_alliance_names, *, clien
         except (TypeError, json.JSONDecodeError) as exc:
             raise OpenAIIntentError(AI_DIAGNOSTIC_API_INVALID_OUTPUT) from exc
         try:
+            candidate = canonicalize_candidate_alliances(candidate, known_alliance_names)
             return build_api_intent_contract(candidate)
         except ValueError as exc:
             raise OpenAIIntentError(AI_DIAGNOSTIC_API_INVALID_OUTPUT) from exc

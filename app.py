@@ -698,7 +698,7 @@ def _build_ai_intent_router():
 
     try:
         from openai import OpenAI
-        from openai_intent import extract_intent_contract_with_openai
+        from openai_intent import build_openai_client_options, extract_intent_contract_with_openai
     except Exception:
         st.session_state["ask_dashboard_ai_diagnostic"] = "api_unavailable"
         return lambda question, known: route_dashboard_question_hybrid(
@@ -708,7 +708,7 @@ def _build_ai_intent_router():
             ai_extractor=None,
         )
 
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(**build_openai_client_options(api_key))
 
     def extractor(question, known_alliance_names):
         return extract_intent_contract_with_openai(
@@ -779,7 +779,7 @@ def ask_dashboard_dialog():
 
     if suggested_question == QUESTION_CUSTOM:
         st.caption(
-            "Free-text questions currently use rule-based matching. Supported "
+            "Free-text questions use rule-first routing. Supported "
             "topics include alliance ranking, player exclusions, negative "
             "share, top contributors, and total net score without named "
             "alliances."
@@ -812,14 +812,15 @@ def ask_dashboard_dialog():
             intent_router=_build_ai_intent_router(),
         )
         routing = answer.get("routing", {})
+        routing_diagnostics = answer.get("routing_diagnostics", {})
         st.session_state["ask_dashboard_last_routing"] = {
             "source": routing.get("source", "rule"),
-            "ai_attempted": bool(routing.get("ai_attempted", False)),
-            "diagnostic_code": routing.get("diagnostic_code"),
+            "ai_attempted": bool(routing_diagnostics.get("ai_attempted", False)),
+            "diagnostic_code": routing_diagnostics.get("diagnostic_code"),
         }
-        if routing.get("diagnostic_code"):
-            st.session_state["ask_dashboard_ai_diagnostic"] = routing.get("diagnostic_code")
-        elif routing.get("ai_attempted"):
+        if routing_diagnostics.get("diagnostic_code"):
+            st.session_state["ask_dashboard_ai_diagnostic"] = routing_diagnostics.get("diagnostic_code")
+        elif routing_diagnostics.get("ai_attempted"):
             st.session_state.pop("ask_dashboard_ai_diagnostic", None)
         records, logging_error = safely_append_question_log_record(
             st.session_state.get("ask_dashboard_question_log", []),

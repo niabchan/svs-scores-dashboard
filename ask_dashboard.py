@@ -808,8 +808,7 @@ def calculate_dashboard_answer(
     )
     result["parameters"] = {**common, **result.get("parameters", {})}
     if routing_result is not None and isinstance(routing_result, dict):
-        result["routing"] = {
-            **result.get("routing", {}),
+        result["routing_diagnostics"] = {
             "ai_attempted": bool(routing_result.get("ai_attempted", False)),
             "ai_succeeded": bool(routing_result.get("ai_succeeded", False)),
             "diagnostic_code": routing_result.get("diagnostic_code"),
