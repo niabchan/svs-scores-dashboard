@@ -763,6 +763,21 @@ def test_player_net_score_leader_variants_route_to_player_intent(question):
     assert validate_intent_contract(contract) == contract
 
 
+def test_net_score_context_helper_recognizes_hyphenated_forms_without_substring_false_positives():
+    helper = __import__("ask_dashboard")._has_net_score_context
+    for text in [
+        "net",
+        "net score",
+        "net-score",
+        "net-score-leading",
+        "top net-score",
+        "highest net-score",
+    ]:
+        assert helper(text) is True
+    for text in ["internet", "planet", "top internet player", "best planet player"]:
+        assert helper(text) is False
+
+
 def test_net_score_subject_precedence_routes_who_alliance_to_alliance_intent():
     for question in [
         "Who is the top net-score alliance?",

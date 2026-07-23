@@ -63,7 +63,6 @@ NEGATIVE_NEUTRAL_CHANGE_TERMS = {"change", "changed"}
 NEGATIVE_CHANGE_TERMS = NEGATIVE_INCREASE_TERMS | NEGATIVE_DECREASE_TERMS | NEGATIVE_NEUTRAL_CHANGE_TERMS
 NET_LEADER_WORD_TERMS = {"lead", "leads", "leader", "leading", "winner"}
 NET_LEADER_PHRASE_TERMS = {"top net", "highest net", "best net", "first in net", "net score winner", "net score leader", "number one by net", "1 by net"}
-NET_SCORE_PHRASE_TERMS = {"net score"}
 EXPLICIT_PLAYER_SUBJECT_TERMS = {"player", "players"}
 WHO_SUBJECT_TERMS = {"who"}
 ALLIANCE_SUBJECT_TERMS = {"alliance", "alliances"}
@@ -82,6 +81,13 @@ def _has_any_phrase(text, terms):
 def _has_any_word_or_phrase(text, word_terms, phrase_terms):
     return _has_any_word(text, word_terms) or _has_any_phrase(text, phrase_terms)
 
+
+def _has_net_score_context(text):
+    """Return True for standalone net-score wording without matching internet/planet."""
+    return bool(
+        re.search(r"(?<!\w)net(?![\w-])", text)
+        or re.search(r"(?<!\w)net[\s-]+score(?:-\w+)*(?!\w)", text)
+    )
 
 
 def format_score(value):
@@ -173,7 +179,7 @@ def route_dashboard_question(question, known_alliance_names=None):
         _has_any_phrase(normalized_question, POSITIVE_RANK_TERMS)
         or ("positive" in normalized_question and _has_any_word(normalized_question, {"rank", "ranking", "first", "top"}))
     )
-    has_net_score_context = _has_any_word(normalized_question, {"net"}) or _has_any_phrase(normalized_question, NET_SCORE_PHRASE_TERMS)
+    has_net_score_context = _has_net_score_context(normalized_question)
     has_explicit_player_subject = _has_any_word(normalized_question, EXPLICIT_PLAYER_SUBJECT_TERMS)
     has_alliance_subject = _has_any_word(normalized_question, ALLIANCE_SUBJECT_TERMS)
     has_who_subject = _has_any_word(normalized_question, WHO_SUBJECT_TERMS)
