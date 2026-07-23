@@ -724,11 +724,78 @@ def execute_dashboard_intent(contract, data, svs_period=None, selected_player_na
     return _attach_routing(result, contract)
 
 
-def calculate_dashboard_answer(question, data, svs_period=None, selected_player_names=None, known_alliance_names=None):
+def route_dashboard_question_hybrid(
+    question,
+    known_alliance_names=None,
+    *,
+    ai_enabled=False,
+    ai_extractor=None,
+):
+    """Route rule-first, with an optional provider-independent AI fallback."""
+    rule_contract = validate_intent_contract(
+        route_dashboard_question(question, known_alliance_names)
+    )
+    if rule_contract["match_status"] != "unsupported" or not ai_enabled:
+        return {
+            "contract": rule_contract,
+            "ai_attempted": False,
+            "ai_succeeded": False,
+            "diagnostic_code": None,
+        }
+
+    if ai_extractor is None:
+        return {
+            "contract": rule_contract,
+            "ai_attempted": False,
+            "ai_succeeded": False,
+            "diagnostic_code": "api_unavailable",
+        }
+
+    try:
+        api_contract = ai_extractor(question, known_alliance_names or [])
+        api_contract = validate_intent_contract(api_contract)
+    except Exception as exc:
+        diagnostic_code = getattr(exc, "diagnostic_code", "api_invalid_output")
+        if diagnostic_code not in {
+            "api_unavailable",
+            "api_refusal",
+            "api_incomplete",
+            "api_invalid_output",
+        }:
+            diagnostic_code = "api_invalid_output"
+        return {
+            "contract": rule_contract,
+            "ai_attempted": True,
+            "ai_succeeded": False,
+            "diagnostic_code": diagnostic_code,
+        }
+
+    return {
+        "contract": api_contract,
+        "ai_attempted": True,
+        "ai_succeeded": True,
+        "diagnostic_code": None,
+    }
+
+
+def calculate_dashboard_answer(
+    question,
+    data,
+    svs_period=None,
+    selected_player_names=None,
+    known_alliance_names=None,
+    *,
+    intent_router=None,
+):
     """Route a question and return a structured Ask Dashboard answer."""
     if known_alliance_names is None:
         known_alliance_names = data["alliance"].dropna().unique().tolist() if "alliance" in data.columns else []
-    contract = route_dashboard_question(question, known_alliance_names)
+    if intent_router is None:
+        contract = route_dashboard_question(question, known_alliance_names)
+        routing_result = None
+    else:
+        routing_result = intent_router(question, known_alliance_names)
+        contract = routing_result["contract"] if isinstance(routing_result, dict) else routing_result
     validated_contract = validate_intent_contract(contract)
     mentioned_alliances = extract_alliance_names_from_question(question, known_alliance_names)
     common = {"question": question, "mentioned_alliances": mentioned_alliances}
@@ -740,6 +807,12 @@ def calculate_dashboard_answer(question, data, svs_period=None, selected_player_
         known_alliance_names,
     )
     result["parameters"] = {**common, **result.get("parameters", {})}
+    if routing_result is not None and isinstance(routing_result, dict):
+        result["routing_diagnostics"] = {
+            "ai_attempted": bool(routing_result.get("ai_attempted", False)),
+            "ai_succeeded": bool(routing_result.get("ai_succeeded", False)),
+            "diagnostic_code": routing_result.get("diagnostic_code"),
+        }
     return result
 
 def _period_text(period, prefix=" in ", bold=False):
