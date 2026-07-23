@@ -51,6 +51,7 @@ SUPPORTED_INTENT_DEFINITIONS = {
     "top_contributors": "Identify top contributing players overall or within named alliances.",
     "alliance_exclusion_total_net": "Calculate total net score after excluding one or more named alliances.",
     "net_score_leader_summary": "Summarize which alliance leads total net score.",
+    "player_net_score_leader": "Identify the player with the highest net score overall or within named alliances.",
     "unsupported_question": "No supported Ask Dashboard intent applies.",
 }
 
@@ -121,7 +122,7 @@ def build_api_intent_contract(candidate):
     parameters = {}
     if intent == "negative_share_change":
         parameters = {"requested_direction": candidate.get("requested_direction")}
-    elif intent == "top_contributors":
+    elif intent in {"top_contributors", "player_net_score_leader"}:
         parameters = {"alliance_names": candidate.get("alliance_names")}
     elif intent == "alliance_exclusion_total_net":
         parameters = {"excluded_alliances": candidate.get("excluded_alliances")}
@@ -184,6 +185,7 @@ def _request_payload(question, known_alliance_names):
         "parameter_rules": {
             "negative_share_change": ["requested_direction"],
             "top_contributors": ["alliance_names"],
+            "player_net_score_leader": ["alliance_names"],
             "alliance_exclusion_total_net": ["excluded_alliances"],
             "other_intents": [],
         },

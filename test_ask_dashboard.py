@@ -9,6 +9,7 @@ from ask_dashboard import (
     QUESTION_NET_VS_POSITIVE,
     QUESTION_TOP_CONTRIBUTORS,
     calculate_dashboard_answer,
+    calculate_player_net_score_leader,
     execute_dashboard_intent,
     render_dashboard_answer,
     route_dashboard_question,
@@ -742,6 +743,94 @@ def test_negative_share_matching_lower_now_regression_mentions_decrease_without_
     assert "decreased by" in rendered
     assert "premise does not match" not in rendered.casefold()
 
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Top net score player",
+        "Who has the highest net score?",
+        "Which player leads in net score?",
+        "Show the top net-score players",
+        "Who is #1 by net score?",
+        "WHO, exactly, has the BEST NET-SCORE?!",
+    ],
+)
+def test_player_net_score_leader_variants_route_to_player_intent(question):
+    contract = route_dashboard_question(question, known_alliance_names=["AAA", "BBB", "CCC"])
+    assert contract["intent"] == "player_net_score_leader"
+    assert contract["intent"] != "net_score_leader_summary"
+    assert validate_intent_contract(contract) == contract
+
+
+def test_smoke_regression_top_net_score_player_is_player_level():
+    answer = ask("Top net score player")
+    rendered = render_dashboard_answer(answer)
+    assert answer["intent"] == "player_net_score_leader"
+    assert answer["metrics"]["top_player"] == "B1"
+    assert "**B1** has the highest net score" in rendered
+    assert "leads total net score" not in rendered
+    assert "positive contribution minus negative impact" not in rendered.casefold()
+
+
+def test_player_net_score_named_alliance_uses_canonical_value():
+    data = sample_data().replace({"AAA": "SnS"})
+    answer = ask("Who has the highest net score in sns?", data=data)
+    assert answer["intent"] == "player_net_score_leader"
+    assert answer["parameters"]["alliance_names"] == ["SnS"]
+    assert answer["parameters"]["matched_alliances"] == ["SnS"]
+    assert answer["metrics"]["top_player"] == "A1"
+
+
+def test_player_net_score_unknown_alliance_guidance():
+    answer = ask("Who has the highest net score in ZZZ?", known=["AAA", "BBB", "CCC", "ZZZ"])
+    assert answer["intent"] == "player_net_score_leader"
+    assert answer["guidance_code"] == "alliance_outside_scope"
+    assert answer["parameters"]["outside_scope_alliances"] == ["ZZZ"]
+
+
+def test_calculate_player_net_score_leader_aggregates_and_ranks_stably():
+    data = pd.DataFrame([
+        {"alliance": "AAA", "player_name": "Zed", "score_gained": 10, "score_lost": 0, "net_score": 10},
+        {"alliance": "AAA", "player_name": "Ann", "score_gained": 50, "score_lost": 10, "net_score": 40},
+        {"alliance": "AAA", "player_name": "Ann", "score_gained": 10, "score_lost": 0, "net_score": 10},
+        {"alliance": "BBB", "player_name": "Ann", "score_gained": 100, "score_lost": 60, "net_score": 40},
+    ])
+    answer = calculate_player_net_score_leader(data, "2026-W25")
+    assert answer["metrics"]["top_player"] == "Ann"
+    assert answer["metrics"]["top_alliance"] == "AAA"
+    assert answer["metrics"]["top_net_score"] == 50
+    assert [(r["player_name"], r["alliance"], r["rank"]) for r in answer["rankings"]["players"]] == [("Ann", "AAA", 1), ("Ann", "BBB", 2), ("Zed", "AAA", 3)]
+    json.dumps(answer)
+
+
+def test_calculate_player_net_score_leader_tie_negative_empty_and_missing_columns():
+    tie = pd.DataFrame([
+        {"alliance": "AAA", "player_name": "A", "score_gained": 0, "score_lost": 5, "net_score": -5},
+        {"alliance": "BBB", "player_name": "B", "score_gained": 0, "score_lost": 5, "net_score": -5},
+    ])
+    answer = calculate_player_net_score_leader(tie)
+    assert answer["metrics"]["leader_count"] == 2
+    assert answer["metrics"]["top_net_score"] == -5
+    rendered = render_dashboard_answer(answer)
+    assert "tied for first" in rendered
+    empty = calculate_player_net_score_leader(tie.iloc[0:0])
+    assert empty["guidance_code"] == "empty_player_scope"
+    missing = calculate_player_net_score_leader(tie.drop(columns=["score_lost"]))
+    assert missing["error_code"] == "missing_columns"
+
+
+def test_player_net_score_contract_and_hybrid_do_not_fallback():
+    contract = route_dashboard_question("Who has the highest net score?", ["AAA"])
+    assert validate_intent_contract(contract)["parameters"] == {"alliance_names": []}
+    with pytest.raises(ValueError, match="unknown parameter field"):
+        validate_intent_contract({**contract, "parameters": {"alliance_names": [], "extra": 1}})
+    result = __import__("ask_dashboard").route_dashboard_question_hybrid(
+        "Who has the highest net score?", ["AAA"], ai_enabled=True, ai_extractor=lambda *_: pytest.fail("AI fallback called")
+    )
+    assert result["contract"]["intent"] == "player_net_score_leader"
+    assert result["ai_attempted"] is False
+
+
 def test_general_net_score_leader_summary():
     answer = ask("Which alliance leads net score, and why?")
     assert answer["intent"] == "net_score_leader_summary"
@@ -758,9 +847,9 @@ def test_general_net_score_leader_summary():
 
 def test_multi_word_net_leader_terms_route_to_summary():
     questions = [
-        "Who has the top net score?",
         "Which alliance has the highest net score?",
-        "Who is the net score winner?",
+        "Top net-score alliance",
+        "Which alliance has the highest total net score?",
     ]
     for question in questions:
         answer = ask(question)
@@ -1129,6 +1218,21 @@ def test_build_api_intent_contract_maps_only_allowed_parameters():
     assert contract["parameters"] == {"requested_direction": "decrease"}
     assert validate_intent_contract(contract) == contract
     assert_json_serializable(contract)
+
+    player_contract = build_api_intent_contract(
+        {
+            "intent": "player_net_score_leader",
+            "requested_direction": "increase",
+            "alliance_names": ["AAA"],
+            "excluded_alliances": ["BBB"],
+            "match_status": "matched",
+            "guidance_code": None,
+            "confidence": 0.7,
+        }
+    )
+    assert player_contract["parameters"] == {"alliance_names": ["AAA"]}
+    assert validate_intent_contract(player_contract) == player_contract
+    assert_json_serializable(player_contract)
 
 
 @pytest.mark.parametrize(

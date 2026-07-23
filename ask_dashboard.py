@@ -48,6 +48,7 @@ SUPPORTED_DASHBOARD_INTENTS = {
     "top_contributors",
     "alliance_exclusion_total_net",
     "net_score_leader_summary",
+    "player_net_score_leader",
     "unsupported_question",
 }
 NEGATIVE_SHARE_DIRECTIONS = {"increase", "decrease", "neutral", "unspecified"}
@@ -61,7 +62,9 @@ NEGATIVE_DECREASE_TERMS = {"lower", "decrease", "decreased", "decline", "decline
 NEGATIVE_NEUTRAL_CHANGE_TERMS = {"change", "changed"}
 NEGATIVE_CHANGE_TERMS = NEGATIVE_INCREASE_TERMS | NEGATIVE_DECREASE_TERMS | NEGATIVE_NEUTRAL_CHANGE_TERMS
 NET_LEADER_WORD_TERMS = {"lead", "leads", "leader", "leading", "winner"}
-NET_LEADER_PHRASE_TERMS = {"top net", "highest net", "first in net", "net score winner"}
+NET_LEADER_PHRASE_TERMS = {"top net", "highest net", "best net", "first in net", "net score winner", "net score leader", "number one by net", "1 by net"}
+PLAYER_SUBJECT_TERMS = {"player", "players", "who"}
+ALLIANCE_SUBJECT_TERMS = {"alliance", "alliances"}
 POSITIVE_RANK_TERMS = {"positive contribution", "positive rank", "positive ranking", "first in positive", "top in positive"}
 
 
@@ -169,10 +172,14 @@ def route_dashboard_question(question, known_alliance_names=None):
         or ("positive" in normalized_question and _has_any_word(normalized_question, {"rank", "ranking", "first", "top"}))
     )
     asks_about_net_leader = "net" in normalized_question and (
-        "alliance" in normalized_question
+        _has_any_word(normalized_question, ALLIANCE_SUBJECT_TERMS | PLAYER_SUBJECT_TERMS)
         or _has_any_word_or_phrase(normalized_question, NET_LEADER_WORD_TERMS, NET_LEADER_PHRASE_TERMS)
     )
-    asks_general_net_leader = asks_about_net_leader and not asks_about_positive_rank
+    has_player_subject = _has_any_word(normalized_question, PLAYER_SUBJECT_TERMS)
+    has_alliance_subject = _has_any_word(normalized_question, ALLIANCE_SUBJECT_TERMS)
+    asks_player_net_leader = asks_about_net_leader and has_player_subject and not asks_about_positive_rank
+    asks_alliance_net_leader = asks_about_net_leader and has_alliance_subject and not has_player_subject and not asks_about_positive_rank
+    asks_general_net_leader = asks_about_net_leader and not has_player_subject and not asks_about_positive_rank
     has_contributor_context = _has_any_phrase(normalized_question, CONTRIBUTOR_CONTEXT_TERMS)
     has_contributor_ranking = _has_any_word(normalized_question, CONTRIBUTOR_RANKING_TERMS)
     asks_about_contributors = has_contributor_context and (
@@ -193,7 +200,9 @@ def route_dashboard_question(question, known_alliance_names=None):
         )
     if asks_about_net_leader and asks_about_positive_rank:
         return _intent_contract("net_vs_positive_ranking")
-    if asks_general_net_leader:
+    if asks_player_net_leader:
+        return _intent_contract("player_net_score_leader", {"alliance_names": mentioned_alliances})
+    if asks_alliance_net_leader or asks_general_net_leader:
         return _intent_contract("net_score_leader_summary")
     if asks_about_negative_share:
         return _intent_contract(
@@ -280,13 +289,13 @@ def validate_intent_contract(contract):
         if direction not in NEGATIVE_SHARE_DIRECTIONS:
             raise ValueError("negative_share_change requested_direction is invalid")
         params["requested_direction"] = direction
-    elif intent == "top_contributors":
+    elif intent in {"top_contributors", "player_net_score_leader"}:
         unknown_params = set(params).difference({"alliance_names"})
         if unknown_params:
-            raise ValueError(f"unknown parameter field(s) for top_contributors: {_field_names(unknown_params)}")
+            raise ValueError(f"unknown parameter field(s) for {intent}: {_field_names(unknown_params)}")
         names = params.get("alliance_names", [])
         if not isinstance(names, list) or not all(isinstance(name, str) and name.strip() for name in names):
-            raise ValueError("top_contributors alliance_names must be a list of nonblank strings")
+            raise ValueError(f"{intent} alliance_names must be a list of nonblank strings")
         params["alliance_names"] = list(names)
     elif intent == "alliance_exclusion_total_net":
         unknown_params = set(params).difference({"excluded_alliances"})
@@ -646,6 +655,46 @@ def calculate_negative_percentage_change(data, selected_player_names=None, svs_p
     return _base_result(intent, "ok", svs_period, guidance_code=("no_excluded_players" if metrics["excluded_player_count"] == 0 else None), parameters={"selected_players": selected, "excluded_players": metrics["excluded_players"], "requested_direction": requested_direction}, metrics=metrics)
 
 
+def _filter_by_alliance_names(df, alliance_names):
+    requested = {str(n).casefold(): str(n) for n in (alliance_names or [])}
+    lookup = {str(n).casefold(): str(n) for n in df["alliance"].dropna().unique()}
+    matched = [lookup[key] for key in requested if key in lookup]
+    outside = [requested[key] for key in requested if key not in lookup]
+    if matched:
+        df = df[df["alliance"].astype(str).str.casefold().isin({n.casefold() for n in matched})]
+    return df, matched, outside
+
+
+def calculate_player_net_score_leader(data, svs_period=None, alliance_names=None):
+    intent = "player_net_score_leader"
+    required = {"alliance", "player_name", "score_gained", "score_lost", "net_score"}
+    missing = required.difference(data.columns)
+    params = {"alliance_names": [str(n) for n in (alliance_names or [])]}
+    if missing:
+        return _missing_columns_result(intent, missing, svs_period, params)
+    df = _numeric_scope(data, ["alliance", "player_name", "score_gained", "score_lost", "net_score"]).dropna(subset=["alliance", "player_name"])
+    if alliance_names:
+        df, matched, outside = _filter_by_alliance_names(df, alliance_names)
+        params.update({"matched_alliances": matched, "outside_scope_alliances": outside})
+        if not matched:
+            return _base_result(intent, "guidance", svs_period, "alliance_outside_scope", parameters=params)
+    df = df.dropna(subset=["net_score"])
+    if df.empty:
+        return _base_result(intent, "guidance", svs_period, "empty_player_scope", parameters=params)
+    summary = df.groupby(["alliance", "player_name"], as_index=False).agg(score_gained=("score_gained", "sum"), score_lost=("score_lost", "sum"), net_score=("net_score", "sum"))
+    if summary["net_score"].isna().all():
+        return _base_result(intent, "guidance", svs_period, "empty_player_scope", parameters=params)
+    summary = summary.sort_values(["net_score", "score_gained", "player_name"], ascending=[False, False, True]).reset_index(drop=True)
+    summary["rank"] = summary["net_score"].rank(method="min", ascending=False).astype(int)
+    records = summary[["rank", "player_name", "alliance", "score_gained", "score_lost", "net_score"]].to_dict("records")
+    leaders = [row for row in records if row["rank"] == 1]
+    metrics = {"leader_count": len(leaders), "top_net_score": leaders[0]["net_score"], "player_count": len(records), "leaders": leaders}
+    if len(leaders) == 1:
+        top = leaders[0]
+        metrics.update({"top_player": top["player_name"], "top_alliance": top["alliance"], "top_score_gained": top["score_gained"], "top_score_lost": top["score_lost"]})
+    return _base_result(intent, "ok", svs_period, parameters=params, metrics=metrics, rankings={"players": records})
+
+
 def calculate_top_contributors(data, svs_period=None, alliance_names=None):
     intent = "top_contributors"
     missing = {"alliance", "player_name", "score_gained", "score_lost", "net_score"}.difference(data.columns)
@@ -715,6 +764,8 @@ def execute_dashboard_intent(contract, data, svs_period=None, selected_player_na
         )
     elif intent == "top_contributors":
         result = calculate_top_contributors(data, svs_period, alliance_names=params.get("alliance_names") or None)
+    elif intent == "player_net_score_leader":
+        result = calculate_player_net_score_leader(data, svs_period, alliance_names=params.get("alliance_names") or None)
     elif intent == "alliance_exclusion_total_net":
         result = calculate_total_net_excluding_alliances(data, params.get("excluded_alliances", []), svs_period)
     elif intent == "net_score_leader_summary":
@@ -848,7 +899,7 @@ def _status_message(answer):
     if code == "alliance_outside_scope":
         names = params.get("outside_scope_alliances") or params.get("alliance_names") or []
         named = ", ".join(f"**{name}**" for name in names)
-        if intent == "top_contributors":
+        if intent in {"top_contributors", "player_net_score_leader"}:
             return f"I recognized {named}, but it is not included in the current alliance filter. Add it in the sidebar, then ask again."
         before_net = metrics.get("before_net_score", 0)
         return f"{named} is not included in the current alliance filter, so excluding it does not change the current total net score of **{format_signed_score(before_net)}**. Add the alliance to the sidebar selection first if you want a before-and-after comparison."
@@ -1018,6 +1069,31 @@ def _render_negative_share(answer):
     )
 
 
+def _render_player_net_score_leader(answer):
+    guidance = _status_message(answer)
+    if guidance:
+        return guidance
+    metrics = answer["metrics"]
+    players = answer.get("rankings", {}).get("players", [])
+    period_text = _period_text(answer.get("period"))
+    params = answer.get("parameters", {})
+    scope_names = params.get("matched_alliances") or params.get("alliance_names") or []
+    scope_text = f" for {'/'.join(map(str, scope_names))}" if scope_names else ""
+    if metrics.get("leader_count", 0) > 1:
+        leaders = metrics.get("leaders", [])
+        names = ", ".join(f"**{row['player_name']}** ({row['alliance']})" for row in leaders)
+        details = "\n".join(f"- **{row['player_name']}** — alliance **{row['alliance']}**, gained **{format_score(row['score_gained'])}**, lost **{format_score(row['score_lost'])}**, net **{format_signed_score(row['net_score'])}**" for row in leaders)
+        return f"Under the current sidebar filters{period_text}{scope_text}, these players are tied for first by net score at **{format_signed_score(metrics['top_net_score'])}**: {names}.\n\n{details}"
+    top = next(row for row in players if row.get("rank") == 1)
+    return (
+        f"Under the current sidebar filters{period_text}{scope_text}, **{top['player_name']}** has the highest net score with **{format_signed_score(top['net_score'])}**.\n\n"
+        f"Alliance: **{top['alliance']}**\n"
+        f"Score gained: **{format_score(top['score_gained'])}**\n"
+        f"Score lost: **{format_score(top['score_lost'])}**\n"
+        f"Net-score rank: **#{top['rank']}**"
+    )
+
+
 def _render_top_contributors(answer):
     guidance = _status_message(answer)
     if guidance:
@@ -1057,6 +1133,7 @@ def render_dashboard_answer(answer):
         "negative_share_change": _render_negative_share,
         "top_contributors": _render_top_contributors,
         "net_score_leader_summary": _render_net_score_leader_summary,
+        "player_net_score_leader": _render_player_net_score_leader,
     }
     renderer = renderers.get(answer.get("intent"))
     if renderer:
