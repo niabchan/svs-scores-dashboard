@@ -750,6 +750,7 @@ def test_negative_share_matching_lower_now_regression_mentions_decrease_without_
         "Top net score player",
         "Who has the highest net score?",
         "Which player leads in net score?",
+        "Which player in alliance SnS has the highest net score?",
         "Show the top net-score players",
         "Who is #1 by net score?",
         "WHO, exactly, has the BEST NET-SCORE?!",
@@ -760,6 +761,25 @@ def test_player_net_score_leader_variants_route_to_player_intent(question):
     assert contract["intent"] == "player_net_score_leader"
     assert contract["intent"] != "net_score_leader_summary"
     assert validate_intent_contract(contract) == contract
+
+
+def test_net_score_subject_precedence_routes_who_alliance_to_alliance_intent():
+    for question in [
+        "Who is the top net-score alliance?",
+        "Who is the net-score-leading alliance?",
+    ]:
+        contract = route_dashboard_question(question, known_alliance_names=["SnS", "TDA"])
+        assert contract["intent"] == "net_score_leader_summary"
+
+
+def test_net_score_context_does_not_match_internet_or_planet_words():
+    for question in [
+        "Top internet player",
+        "Who is the internet winner?",
+        "Best planet player",
+    ]:
+        contract = route_dashboard_question(question, known_alliance_names=["AAA"])
+        assert contract["intent"] not in {"player_net_score_leader", "net_score_leader_summary"}
 
 
 def test_smoke_regression_top_net_score_player_is_player_level():
@@ -781,11 +801,34 @@ def test_player_net_score_named_alliance_uses_canonical_value():
     assert answer["metrics"]["top_player"] == "A1"
 
 
+def test_player_net_score_all_requested_alliances_matched_case_insensitively():
+    data = sample_data().replace({"AAA": "SnS", "BBB": "TDA"})
+    answer = ask("Which player has the highest net score in sns and tda?", data=data)
+    assert answer["intent"] == "player_net_score_leader"
+    assert answer["parameters"]["matched_alliances"] == ["SnS", "TDA"]
+    assert answer["parameters"]["outside_scope_alliances"] == []
+    assert answer["rankings"]["players"]
+
+
 def test_player_net_score_unknown_alliance_guidance():
     answer = ask("Who has the highest net score in ZZZ?", known=["AAA", "BBB", "CCC", "ZZZ"])
     assert answer["intent"] == "player_net_score_leader"
     assert answer["guidance_code"] == "alliance_outside_scope"
+    assert answer["parameters"]["matched_alliances"] == []
     assert answer["parameters"]["outside_scope_alliances"] == ["ZZZ"]
+
+
+def test_player_net_score_partial_requested_alliance_scope_returns_guidance_without_ranking():
+    data = sample_data().replace({"AAA": "SnS"})
+    answer = ask("Who has the highest net score in SnS and TDA?", data=data, known=["SnS", "TDA", "BBB", "CCC"])
+    rendered = render_dashboard_answer(answer)
+    assert answer["intent"] == "player_net_score_leader"
+    assert answer["guidance_code"] == "alliance_outside_scope"
+    assert answer["parameters"]["matched_alliances"] == ["SnS"]
+    assert answer["parameters"]["outside_scope_alliances"] == ["TDA"]
+    assert answer["metrics"] == {}
+    assert answer["rankings"] == {}
+    assert "**TDA**" in rendered
 
 
 def test_calculate_player_net_score_leader_aggregates_and_ranks_stably():

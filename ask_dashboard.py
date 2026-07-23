@@ -63,7 +63,9 @@ NEGATIVE_NEUTRAL_CHANGE_TERMS = {"change", "changed"}
 NEGATIVE_CHANGE_TERMS = NEGATIVE_INCREASE_TERMS | NEGATIVE_DECREASE_TERMS | NEGATIVE_NEUTRAL_CHANGE_TERMS
 NET_LEADER_WORD_TERMS = {"lead", "leads", "leader", "leading", "winner"}
 NET_LEADER_PHRASE_TERMS = {"top net", "highest net", "best net", "first in net", "net score winner", "net score leader", "number one by net", "1 by net"}
-PLAYER_SUBJECT_TERMS = {"player", "players", "who"}
+NET_SCORE_PHRASE_TERMS = {"net score"}
+EXPLICIT_PLAYER_SUBJECT_TERMS = {"player", "players"}
+WHO_SUBJECT_TERMS = {"who"}
 ALLIANCE_SUBJECT_TERMS = {"alliance", "alliances"}
 POSITIVE_RANK_TERMS = {"positive contribution", "positive rank", "positive ranking", "first in positive", "top in positive"}
 
@@ -171,15 +173,20 @@ def route_dashboard_question(question, known_alliance_names=None):
         _has_any_phrase(normalized_question, POSITIVE_RANK_TERMS)
         or ("positive" in normalized_question and _has_any_word(normalized_question, {"rank", "ranking", "first", "top"}))
     )
-    asks_about_net_leader = "net" in normalized_question and (
-        _has_any_word(normalized_question, ALLIANCE_SUBJECT_TERMS | PLAYER_SUBJECT_TERMS)
+    has_net_score_context = _has_any_word(normalized_question, {"net"}) or _has_any_phrase(normalized_question, NET_SCORE_PHRASE_TERMS)
+    has_explicit_player_subject = _has_any_word(normalized_question, EXPLICIT_PLAYER_SUBJECT_TERMS)
+    has_alliance_subject = _has_any_word(normalized_question, ALLIANCE_SUBJECT_TERMS)
+    has_who_subject = _has_any_word(normalized_question, WHO_SUBJECT_TERMS)
+    has_player_subject = has_explicit_player_subject or (has_who_subject and not has_alliance_subject)
+    asks_about_net_leader = has_net_score_context and (
+        has_explicit_player_subject
+        or has_alliance_subject
+        or has_who_subject
         or _has_any_word_or_phrase(normalized_question, NET_LEADER_WORD_TERMS, NET_LEADER_PHRASE_TERMS)
     )
-    has_player_subject = _has_any_word(normalized_question, PLAYER_SUBJECT_TERMS)
-    has_alliance_subject = _has_any_word(normalized_question, ALLIANCE_SUBJECT_TERMS)
     asks_player_net_leader = asks_about_net_leader and has_player_subject and not asks_about_positive_rank
-    asks_alliance_net_leader = asks_about_net_leader and has_alliance_subject and not has_player_subject and not asks_about_positive_rank
-    asks_general_net_leader = asks_about_net_leader and not has_player_subject and not asks_about_positive_rank
+    asks_alliance_net_leader = asks_about_net_leader and has_alliance_subject and not has_explicit_player_subject and not asks_about_positive_rank
+    asks_general_net_leader = asks_about_net_leader and not has_player_subject and not has_alliance_subject and not asks_about_positive_rank
     has_contributor_context = _has_any_phrase(normalized_question, CONTRIBUTOR_CONTEXT_TERMS)
     has_contributor_ranking = _has_any_word(normalized_question, CONTRIBUTOR_RANKING_TERMS)
     asks_about_contributors = has_contributor_context and (
@@ -676,7 +683,7 @@ def calculate_player_net_score_leader(data, svs_period=None, alliance_names=None
     if alliance_names:
         df, matched, outside = _filter_by_alliance_names(df, alliance_names)
         params.update({"matched_alliances": matched, "outside_scope_alliances": outside})
-        if not matched:
+        if outside:
             return _base_result(intent, "guidance", svs_period, "alliance_outside_scope", parameters=params)
     df = df.dropna(subset=["net_score"])
     if df.empty:
