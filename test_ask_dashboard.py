@@ -1836,3 +1836,41 @@ def test_openai_prompt_includes_interpretation_boundary():
     assert "dashboard_help" in prompt
     assert "dashboard_limitation" in prompt
     assert "Never infer those qualities" in prompt
+
+
+@pytest.mark.parametrize(("question", "intent"), [
+    ("Can the dashboard show why the negative percentage increased?", "negative_share_change"),
+    ("Can scores show why the negative share decreased?", "negative_share_change"),
+    ("Can the dashboard tell why the top net-score alliance ranks second in positive contribution?", "net_vs_positive_ranking"),
+])
+def test_dashboard_explanation_wording_remains_score_analysis(question, intent):
+    assert route_dashboard_question(question, ["AAA", "BBB"])["intent"] == intent
+
+
+@pytest.mark.parametrize("question", [
+    "Can the dashboard tell how this player behaved?",
+    "Can scores determine a player’s behavior?",
+    "Did Player A intend to lose points?",
+    "Was the player intending to feed points?",
+    "Did the player do it deliberately?",
+    "Was this done on purpose?",
+])
+def test_explicit_behavior_and_intent_wording_is_rule_first_limitation(question):
+    hybrid = __import__("ask_dashboard").route_dashboard_question_hybrid(
+        question,
+        ["AAA"],
+        ai_enabled=True,
+        ai_extractor=lambda *_: pytest.fail("AI fallback called"),
+    )
+    assert hybrid["contract"]["intent"] == "dashboard_limitation"
+    assert hybrid["ai_attempted"] is False
+
+    answer = execute_dashboard_intent(hybrid["contract"], sample_data(), "2027-W01")
+    rendered = render_dashboard_answer(answer)
+    assert "cannot determine" in rendered
+    assert "You can instead ask" in rendered
+    assert "Data note:" not in rendered
+    # The controlled response discusses evidence boundaries without affirming
+    # that the player behaved or intended to act as alleged in the question.
+    assert "the player behaved" not in rendered.casefold()
+    assert "the player intended" not in rendered.casefold()

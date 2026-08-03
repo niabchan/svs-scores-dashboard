@@ -177,14 +177,18 @@ def route_dashboard_question(question, known_alliance_names=None):
     if re.match(r"^help(?:\s|$)", normalized_question):
         return _intent_contract("dashboard_help")
 
-    limitation_patterns = (
+    # Strong, explicit human-judgment signals take precedence over analytical
+    # routing. These terms directly ask for qualities that scores cannot prove.
+    strong_limitation_patterns = (
         r"\b(reckless|careless|selfish|malicious|skilled|unskilled|responsible)\b",
         r"\bbad\s+(?:svs\s+)?player\b",
-        r"\b(intent|intention|intentional(?:ly)?|motive|motives|character|strategy)\b",
+        r"\bbehaviou?r\b|\bbehav(?:ed|ing)\b",
+        r"\bintend(?:s|ed|ing)?\b|\bintent(?:ions?|ional(?:ly)?)?\b",
+        r"\bdeliberate(?:ly)?\b|\bon\s+purpose\b",
+        r"\b(motive|motives|character|strategy)\b",
         r"\bmean\s+to\b|\btrying\s+to\s+help\b|\bprove\b.*\bignored?\b",
-        r"\b(?:scores?|dashboard)\b.*\b(?:show|tell|determine|prove)\b.*\bwhy\b",
     )
-    if any(re.search(pattern, normalized_question) for pattern in limitation_patterns):
+    if any(re.search(pattern, normalized_question) for pattern in strong_limitation_patterns):
         return _intent_contract("dashboard_limitation")
 
     if question == QUESTION_NET_VS_POSITIVE:
@@ -253,6 +257,17 @@ def route_dashboard_question(question, known_alliance_names=None):
         )
     if asks_about_contributors and ("alliance" in normalized_question or mentioned_alliances):
         return _intent_contract("top_contributors", {"alliance_names": mentioned_alliances})
+
+    # Contextual inference wording is checked only after every supported score
+    # analysis. This preserves requests to explain score mathematics while
+    # still preventing ambiguous human-inference questions from reaching AI.
+    contextual_limitation_patterns = (
+        r"\b(?:scores?|dashboard)\b.*\b(?:show|tell|determine|prove)\b.*\bwhy\b.*\bplayer\b",
+        r"\bwhy\b.*\bplayer\b.*\b(?:did|does|acted|played)\b",
+        r"\bunseen\s+(?:gameplay|circumstances?|context)\b",
+    )
+    if any(re.search(pattern, normalized_question) for pattern in contextual_limitation_patterns):
+        return _intent_contract("dashboard_limitation")
     return _intent_contract(
         "unsupported_question",
         match_status="unsupported",
