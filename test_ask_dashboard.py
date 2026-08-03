@@ -1907,3 +1907,82 @@ def test_contextual_auxiliary_before_player_is_rule_first_limitation(question):
 ])
 def test_contextual_limitation_order_preserves_analytical_questions(question, intent):
     assert route_dashboard_question(question, ["AAA", "BBB"])["intent"] == intent
+
+
+@pytest.mark.parametrize("question", [
+    "How to use dashboard",
+    "How to use the dashboard",
+    "How do I use the dashboard?",
+    "How can I use this dashboard?",
+    "How does Ask Dashboard work?",
+    "What can I ask the dashboard?",
+    "What questions can I ask?",
+    "What can this dashboard do?",
+    "Show me how to use the dashboard",
+])
+def test_natural_help_requests_are_rule_first(question):
+    hybrid = __import__("ask_dashboard").route_dashboard_question_hybrid(
+        question,
+        ["AAA"],
+        ai_enabled=True,
+        ai_extractor=lambda *_: pytest.fail("AI fallback called"),
+    )
+    assert hybrid["contract"]["intent"] == "dashboard_help"
+    assert hybrid["contract"]["source"] == "rule"
+    assert hybrid["ai_attempted"] is False
+
+    answer = execute_dashboard_intent(hybrid["contract"], sample_data(), "2026-W29")
+    rendered = render_dashboard_answer(answer)
+    assert "How to use Ask Dashboard" in rendered
+    assert "I could not map that question" not in rendered
+    assert "Data note:" not in rendered
+
+
+@pytest.mark.parametrize("question", [
+    "Why did T do this?",
+    "Why does Ministry keep losing points?",
+    "Was SnS trying to lose points?",
+    "Is A1 responsible for the loss?",
+    "Was A1 playing badly?",
+    "Did they ignore orders?",
+    "Who is to blame?",
+    "Was this A1's fault?",
+    "What kind of player is A1?",
+    "Can the dashboard tell whether A1 made a mistake?",
+    "Can these scores show whether someone made a mistake?",
+    "Does this prove A1 ignored orders?",
+])
+def test_human_inference_routing_does_not_require_known_names(question):
+    hybrid = __import__("ask_dashboard").route_dashboard_question_hybrid(
+        question,
+        ["AAA"],
+        ai_enabled=True,
+        ai_extractor=lambda *_: pytest.fail("AI fallback called"),
+    )
+    assert hybrid["contract"]["intent"] == "dashboard_limitation"
+    assert hybrid["contract"]["source"] == "rule"
+    assert hybrid["ai_attempted"] is False
+
+    answer = execute_dashboard_intent(hybrid["contract"], sample_data(), "2027-W01")
+    rendered = render_dashboard_answer(answer)
+    assert "cannot determine" in rendered
+    assert "I could not map that question" not in rendered
+    assert "Data note:" not in rendered
+
+
+@pytest.mark.parametrize(("question", "intent"), [
+    ("Why did the negative percentage increase?", "negative_share_change"),
+    ("Can the dashboard show why the negative percentage increased?", "negative_share_change"),
+    ("Why does the top net-score alliance rank second in positive contribution?", "net_vs_positive_ranking"),
+    ("Why did Player A have the highest net score?", "player_net_score_leader"),
+    ("Who contributed most in SnS?", "top_contributors"),
+])
+def test_concept_based_limitation_preserves_supported_analytics(question, intent):
+    hybrid = __import__("ask_dashboard").route_dashboard_question_hybrid(
+        question,
+        ["SnS", "AAA", "BBB"],
+        ai_enabled=True,
+        ai_extractor=lambda *_: pytest.fail("AI fallback called"),
+    )
+    assert hybrid["contract"]["intent"] == intent
+    assert hybrid["ai_attempted"] is False
