@@ -104,6 +104,54 @@ def _has_net_score_context(text):
     )
 
 
+def _is_dashboard_help_request(text):
+    """Recognize explicit and natural-language requests for dashboard guidance."""
+    if re.match(r"^help(?:\s|$)", text):
+        return True
+    help_patterns = (
+        r"how (?:do i|can i|to) use (?:the |this |ask )?dashboard",
+        r"how does (?:the |this |ask )?dashboard work",
+        r"what can i ask (?:the |this |ask )?dashboard",
+        r"what questions can i ask",
+        r"what can (?:the |this |ask )?dashboard do",
+        r"show me how to use (?:the |this |ask )?dashboard",
+    )
+    return any(re.fullmatch(pattern, text) for pattern in help_patterns)
+
+
+def _is_strong_human_inference_request(text):
+    """Return True when wording explicitly asks for unsupported human inference."""
+    strong_patterns = (
+        r"\b(reckless|careless|selfish|malicious|skilled|unskilled)\b",
+        r"\b(?:good|bad)\s+(?:svs\s+)?player\b",
+        r"\bplay(?:ed|ing)?\s+badly\b",
+        r"\bbehaviou?r\b|\bbehav(?:ed|ing)\b",
+        r"\bintend(?:s|ed|ing)?\b|\bintent(?:ions?|ional(?:ly)?)?\b",
+        r"\bdeliberate(?:ly)?\b|\bon\s+purpose\b",
+        r"\b(motive|motives|character|strategy)\b",
+        r"\b(?:responsible|responsibility|to\s+blame|whose\s+fault|at\s+fault|fault)\b",
+        r"\b(?:made|make|making)\s+(?:a\s+)?mistake\b",
+        r"\bignore(?:d|s|ing)?\s+orders?\b",
+        r"\b(?:know|knew)\b.*\b(?:would|could)\b.*\bhappen\b",
+        r"\b(?:try|tries|tried|trying)\s+to\s+(?:lose|feed|help|hurt|win|score|zero|cause|ignore)\b",
+        r"\b(?:want|wants|wanted|mean|means|meant)\s+to\s+(?:lose|feed|help|hurt|win|score|zero|cause|ignore)\b",
+        r"\bwhat\s+kind\s+of\s+player\b",
+    )
+    return any(re.search(pattern, text) for pattern in strong_patterns)
+
+
+def _is_contextual_human_inference_request(text):
+    """Recognize indirect motive or behavior questions after score routing fails."""
+    contextual_patterns = (
+        r"\bwhy\s+(?:did|does)\b.+\b(?:do\s+(?:this|that)|keep\s+|act(?:s|ed|ing)?\b|play(?:s|ed|ing)?\b)",
+        r"\bwhy\s+(?:was|is)\b.+\b(?:trying|acting|playing)\b",
+        r"\b(?:dashboard|scores?|data|results?)\b.*\b(?:show|tell|infer|determine|prove|indicate|suggest|judge|conclude|know|explain)\b.*\b(?:behaviou?r|intent(?:ion)?|motive|purpose|responsib|blame|fault|mistake|careless|reckless|why)\w*\b",
+        r"\bcan\b.*\b(?:tell|infer|determine|prove|judge|conclude)\b.*\b(?:someone|somebody|they|he|she|person|player)\b",
+        r"\bunseen\s+(?:gameplay|circumstances?|context)\b",
+    )
+    return any(re.search(pattern, text) for pattern in contextual_patterns)
+
+
 def format_score(value):
     """Format dashboard scores consistently for narrative answers."""
     return f"{value:,.0f}"
@@ -172,23 +220,12 @@ def route_dashboard_question(question, known_alliance_names=None):
     known_alliance_names = known_alliance_names or []
     mentioned_alliances = extract_alliance_names_from_question(question, known_alliance_names)
 
-    # Help is deliberately a standalone, first-word command so that words such
-    # as "helpful" cannot accidentally take over an analytical question.
-    if re.match(r"^help(?:\s|$)", normalized_question):
+    if _is_dashboard_help_request(normalized_question):
         return _intent_contract("dashboard_help")
 
-    # Strong, explicit human-judgment signals take precedence over analytical
-    # routing. These terms directly ask for qualities that scores cannot prove.
-    strong_limitation_patterns = (
-        r"\b(reckless|careless|selfish|malicious|skilled|unskilled|responsible)\b",
-        r"\bbad\s+(?:svs\s+)?player\b",
-        r"\bbehaviou?r\b|\bbehav(?:ed|ing)\b",
-        r"\bintend(?:s|ed|ing)?\b|\bintent(?:ions?|ional(?:ly)?)?\b",
-        r"\bdeliberate(?:ly)?\b|\bon\s+purpose\b",
-        r"\b(motive|motives|character|strategy)\b",
-        r"\bmean\s+to\b|\btrying\s+to\s+help\b|\bprove\b.*\bignored?\b",
-    )
-    if any(re.search(pattern, normalized_question) for pattern in strong_limitation_patterns):
+    # Explicit human-judgment requests take precedence because no supported
+    # score analysis can establish these qualities from the available data.
+    if _is_strong_human_inference_request(normalized_question):
         return _intent_contract("dashboard_limitation")
 
     if question == QUESTION_NET_VS_POSITIVE:
@@ -258,16 +295,10 @@ def route_dashboard_question(question, known_alliance_names=None):
     if asks_about_contributors and ("alliance" in normalized_question or mentioned_alliances):
         return _intent_contract("top_contributors", {"alliance_names": mentioned_alliances})
 
-    # Contextual inference wording is checked only after every supported score
-    # analysis. This preserves requests to explain score mathematics while
-    # still preventing ambiguous human-inference questions from reaching AI.
-    contextual_limitation_patterns = (
-        r"\b(?:scores?|dashboard)\b.*\b(?:show|tell|determine|prove)\b.*\bwhy\b.*\bplayer\b",
-        r"\bwhy\s+(?:did|does)\b.*\bplayer\b.*\b(?:do|keep|act(?:s|ed|ing)?|play(?:s|ed|ing)?)\b",
-        r"\bwhy\b.*\bplayer\b.*\b(?:did|does|acted|played)\b",
-        r"\bunseen\s+(?:gameplay|circumstances?|context)\b",
-    )
-    if any(re.search(pattern, normalized_question) for pattern in contextual_limitation_patterns):
+    # Indirect human-inference wording is checked only after every supported
+    # score analysis. It intentionally does not depend on knowing the subject's
+    # player or alliance name.
+    if _is_contextual_human_inference_request(normalized_question):
         return _intent_contract("dashboard_limitation")
     return _intent_contract(
         "unsupported_question",
