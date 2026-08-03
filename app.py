@@ -779,7 +779,8 @@ def ask_dashboard_dialog():
 
     if suggested_question == QUESTION_CUSTOM:
         st.caption(
-            "Free-text questions use rule-first routing. Supported "
+            "Need help? Start with “help” to learn how to use the dashboard, "
+            "or ask your question directly. Free-text questions use rule-first routing. Supported "
             "topics include alliance ranking, player exclusions, negative "
             "share, top contributors, and total net score without named "
             "alliances."
@@ -787,8 +788,7 @@ def ask_dashboard_dialog():
         custom_question = st.text_area(
             "Enter your question",
             placeholder=(
-                "Examples: What is the total net score without TDA? "
-                "Who contributed most in SnS?"
+                "Try: Top net score player — or type help"
             ),
         )
 
