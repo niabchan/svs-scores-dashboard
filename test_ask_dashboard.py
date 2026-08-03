@@ -1744,3 +1744,166 @@ def test_build_api_intent_contract_enforces_exact_candidate_schema(candidate):
 
     with pytest.raises(ValueError):
         build_api_intent_contract(candidate)
+
+
+@pytest.mark.parametrize("question", ["help", "HELP", "help filters", "help questions", "help player selection", "help limitations"])
+def test_help_is_rule_first_valid_and_serializable(question):
+    contract = route_dashboard_question(question, ["AAA"])
+    assert contract["intent"] == "dashboard_help"
+    assert contract["parameters"] == {}
+    assert validate_intent_contract(contract) == contract
+    assert_json_serializable(contract)
+    hybrid = __import__("ask_dashboard").route_dashboard_question_hybrid(
+        question, ["AAA"], ai_enabled=True, ai_extractor=lambda *_: pytest.fail("AI fallback called")
+    )
+    assert hybrid["ai_attempted"] is False
+
+
+def test_helpful_is_not_help_and_help_rendering_has_boundaries():
+    assert route_dashboard_question("helpful player", ["AAA"])["intent"] != "dashboard_help"
+    answer = calculate_dashboard_answer("help", sample_data(), "2026-W29")
+    rendered = render_dashboard_answer(answer)
+    assert "current filters" in rendered
+    assert "Top net score player" in rendered
+    assert "cannot determine" in rendered
+    assert "Data note:" not in rendered
+
+
+@pytest.mark.parametrize("question", [
+    "Was this player reckless?", "Did this player intentionally lose points?",
+    "Who is the most selfish player?", "Is this a bad SVS player?",
+    "Can the dashboard tell a player’s intention?", "WAS PLAYER A CARELESS?!",
+])
+def test_interpretation_questions_are_controlled_rule_answers(question):
+    hybrid = __import__("ask_dashboard").route_dashboard_question_hybrid(
+        question, ["AAA"], ai_enabled=True, ai_extractor=lambda *_: pytest.fail("AI fallback called")
+    )
+    assert hybrid["contract"]["intent"] == "dashboard_limitation"
+    assert hybrid["ai_attempted"] is False
+    answer = execute_dashboard_intent(hybrid["contract"], sample_data(), "2027-W01")
+    rendered = render_dashboard_answer(answer)
+    assert "cannot determine" in rendered
+    assert "recorded score gained" in rendered
+    assert "Data note:" not in rendered
+
+
+@pytest.mark.parametrize(("question", "intent"), [
+    ("Who has the highest net score?", "player_net_score_leader"),
+    ("Top net score player", "player_net_score_leader"),
+    ("Which alliance leads net score?", "net_score_leader_summary"),
+    ("Who contributed most in SnS?", "top_contributors"),
+    ("Why did the negative percentage increase?", "negative_share_change"),
+    ("What changed after excluding selected players?", "player_exclusion_impact"),
+])
+def test_limitation_rule_preserves_score_questions(question, intent):
+    assert route_dashboard_question(question, ["SnS"])["intent"] == intent
+
+
+@pytest.mark.parametrize(("period", "has_notice"), [
+    ("2026-W27", False), ("2026-W29", True), ("2027-W01", True), ("W29", False),
+])
+def test_rounded_score_notice_period_boundary(period, has_notice):
+    answer = calculate_dashboard_answer("Top net score player", sample_data(), period)
+    assert ("Data note:" in render_dashboard_answer(answer)) is has_notice
+
+
+def test_rounded_score_notice_only_for_successful_score_answers():
+    alliance = calculate_dashboard_answer("Which alliance leads net score?", sample_data(), "2026-W29")
+    exclusion = calculate_dashboard_answer("What changed after excluding selected players?", sample_data(), "2026-W29", ["A1"])
+    unsupported = calculate_dashboard_answer("Predict tomorrow", sample_data(), "2026-W29")
+    error = calculate_dashboard_answer("Top net score player", sample_data().drop(columns=["score_lost"]), "2026-W29")
+    assert "Data note:" in render_dashboard_answer(alliance)
+    assert "Data note:" in render_dashboard_answer(exclusion)
+    assert "Data note:" not in render_dashboard_answer(unsupported)
+    assert "Data note:" not in render_dashboard_answer(error)
+
+
+@pytest.mark.parametrize("intent", ["dashboard_help", "dashboard_limitation"])
+def test_ai_schema_and_contract_support_boundary_intents(intent):
+    from openai_intent import AI_INTENT_CANDIDATE_SCHEMA, build_api_intent_contract
+    assert intent in AI_INTENT_CANDIDATE_SCHEMA["properties"]["intent"]["enum"]
+    candidate = {"intent": intent, "requested_direction": "unspecified", "alliance_names": [],
+                 "excluded_alliances": [], "match_status": "matched", "guidance_code": None, "confidence": 0.5}
+    assert build_api_intent_contract(candidate)["parameters"] == {}
+    contract = route_dashboard_question("help" if intent == "dashboard_help" else "Was this player reckless?")
+    with pytest.raises(ValueError, match="does not accept parameters"):
+        validate_intent_contract({**contract, "parameters": {"extra": 1}})
+
+
+def test_openai_prompt_includes_interpretation_boundary():
+    from openai_intent import _request_payload
+    prompt = _request_payload("unusual wording", ["AAA"])[0]["content"]
+    assert "dashboard_help" in prompt
+    assert "dashboard_limitation" in prompt
+    assert "Never infer those qualities" in prompt
+
+
+@pytest.mark.parametrize(("question", "intent"), [
+    ("Can the dashboard show why the negative percentage increased?", "negative_share_change"),
+    ("Can scores show why the negative share decreased?", "negative_share_change"),
+    ("Can the dashboard tell why the top net-score alliance ranks second in positive contribution?", "net_vs_positive_ranking"),
+])
+def test_dashboard_explanation_wording_remains_score_analysis(question, intent):
+    assert route_dashboard_question(question, ["AAA", "BBB"])["intent"] == intent
+
+
+@pytest.mark.parametrize("question", [
+    "Can the dashboard tell how this player behaved?",
+    "Can scores determine a player’s behavior?",
+    "Did Player A intend to lose points?",
+    "Was the player intending to feed points?",
+    "Did the player do it deliberately?",
+    "Was this done on purpose?",
+])
+def test_explicit_behavior_and_intent_wording_is_rule_first_limitation(question):
+    hybrid = __import__("ask_dashboard").route_dashboard_question_hybrid(
+        question,
+        ["AAA"],
+        ai_enabled=True,
+        ai_extractor=lambda *_: pytest.fail("AI fallback called"),
+    )
+    assert hybrid["contract"]["intent"] == "dashboard_limitation"
+    assert hybrid["ai_attempted"] is False
+
+    answer = execute_dashboard_intent(hybrid["contract"], sample_data(), "2027-W01")
+    rendered = render_dashboard_answer(answer)
+    assert "cannot determine" in rendered
+    assert "You can instead ask" in rendered
+    assert "Data note:" not in rendered
+    # The controlled response discusses evidence boundaries without affirming
+    # that the player behaved or intended to act as alleged in the question.
+    assert "the player behaved" not in rendered.casefold()
+    assert "the player intended" not in rendered.casefold()
+
+
+@pytest.mark.parametrize("question", [
+    "Why did Player A do this?",
+    "Why does this player keep losing points?",
+    "Why did this player act that way?",
+])
+def test_contextual_auxiliary_before_player_is_rule_first_limitation(question):
+    hybrid = __import__("ask_dashboard").route_dashboard_question_hybrid(
+        question,
+        ["AAA"],
+        ai_enabled=True,
+        ai_extractor=lambda *_: pytest.fail("AI fallback called"),
+    )
+    assert hybrid["contract"]["intent"] == "dashboard_limitation"
+    assert hybrid["ai_attempted"] is False
+
+    answer = execute_dashboard_intent(hybrid["contract"], sample_data(), "2027-W01")
+    rendered = render_dashboard_answer(answer)
+    assert "cannot determine" in rendered
+    assert "unseen gameplay circumstances" in rendered
+    assert "Data note:" not in rendered
+    assert "player acted" not in rendered.casefold()
+    assert "player intended" not in rendered.casefold()
+
+
+@pytest.mark.parametrize(("question", "intent"), [
+    ("Why did the negative percentage increase?", "negative_share_change"),
+    ("Why does the top net-score alliance rank second in positive contribution?", "net_vs_positive_ranking"),
+    ("Why did Player A have the highest net score?", "player_net_score_leader"),
+])
+def test_contextual_limitation_order_preserves_analytical_questions(question, intent):
+    assert route_dashboard_question(question, ["AAA", "BBB"])["intent"] == intent

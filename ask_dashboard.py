@@ -19,6 +19,7 @@ QUESTION_NEGATIVE_PERCENTAGE = (
 QUESTION_TOP_CONTRIBUTORS = (
     "Which players contributed most to the selected alliance?"
 )
+QUESTION_HELP = "Help — learn how to use Ask Dashboard"
 QUESTION_CUSTOM = "Write my own question"
 
 SUGGESTED_QUESTIONS = [
@@ -26,6 +27,7 @@ SUGGESTED_QUESTIONS = [
     QUESTION_EXCLUSION_IMPACT,
     QUESTION_NEGATIVE_PERCENTAGE,
     QUESTION_TOP_CONTRIBUTORS,
+    QUESTION_HELP,
     QUESTION_CUSTOM,
 ]
 
@@ -49,8 +51,20 @@ SUPPORTED_DASHBOARD_INTENTS = {
     "alliance_exclusion_total_net",
     "net_score_leader_summary",
     "player_net_score_leader",
+    "dashboard_help",
+    "dashboard_limitation",
     "unsupported_question",
 }
+SCORE_DERIVED_INTENTS = SUPPORTED_DASHBOARD_INTENTS.difference(
+    {"dashboard_help", "dashboard_limitation", "unsupported_question"}
+)
+ROUNDED_SCORE_GAINED_START_PERIOD = (2026, 29)
+ROUNDED_SCORE_GAINED_END_PERIOD = None
+ROUNDED_SCORE_NOTICE = (
+    "Data note: Some score-gained values for this period are based on Evony’s "
+    "rounded in-game display. Totals, net scores, rankings, and derived results "
+    "are therefore approximate and may differ slightly from exact values."
+)
 NEGATIVE_SHARE_DIRECTIONS = {"increase", "decrease", "neutral", "unspecified"}
 
 CONTRIBUTOR_CONTEXT_TERMS = {"contributor", "contributors", "contribution", "contributed", "contributing", "contribut", "player", "players", "who"}
@@ -158,6 +172,25 @@ def route_dashboard_question(question, known_alliance_names=None):
     known_alliance_names = known_alliance_names or []
     mentioned_alliances = extract_alliance_names_from_question(question, known_alliance_names)
 
+    # Help is deliberately a standalone, first-word command so that words such
+    # as "helpful" cannot accidentally take over an analytical question.
+    if re.match(r"^help(?:\s|$)", normalized_question):
+        return _intent_contract("dashboard_help")
+
+    # Strong, explicit human-judgment signals take precedence over analytical
+    # routing. These terms directly ask for qualities that scores cannot prove.
+    strong_limitation_patterns = (
+        r"\b(reckless|careless|selfish|malicious|skilled|unskilled|responsible)\b",
+        r"\bbad\s+(?:svs\s+)?player\b",
+        r"\bbehaviou?r\b|\bbehav(?:ed|ing)\b",
+        r"\bintend(?:s|ed|ing)?\b|\bintent(?:ions?|ional(?:ly)?)?\b",
+        r"\bdeliberate(?:ly)?\b|\bon\s+purpose\b",
+        r"\b(motive|motives|character|strategy)\b",
+        r"\bmean\s+to\b|\btrying\s+to\s+help\b|\bprove\b.*\bignored?\b",
+    )
+    if any(re.search(pattern, normalized_question) for pattern in strong_limitation_patterns):
+        return _intent_contract("dashboard_limitation")
+
     if question == QUESTION_NET_VS_POSITIVE:
         return _intent_contract("net_vs_positive_ranking")
     if question == QUESTION_EXCLUSION_IMPACT:
@@ -224,6 +257,18 @@ def route_dashboard_question(question, known_alliance_names=None):
         )
     if asks_about_contributors and ("alliance" in normalized_question or mentioned_alliances):
         return _intent_contract("top_contributors", {"alliance_names": mentioned_alliances})
+
+    # Contextual inference wording is checked only after every supported score
+    # analysis. This preserves requests to explain score mathematics while
+    # still preventing ambiguous human-inference questions from reaching AI.
+    contextual_limitation_patterns = (
+        r"\b(?:scores?|dashboard)\b.*\b(?:show|tell|determine|prove)\b.*\bwhy\b.*\bplayer\b",
+        r"\bwhy\s+(?:did|does)\b.*\bplayer\b.*\b(?:do|keep|act(?:s|ed|ing)?|play(?:s|ed|ing)?)\b",
+        r"\bwhy\b.*\bplayer\b.*\b(?:did|does|acted|played)\b",
+        r"\bunseen\s+(?:gameplay|circumstances?|context)\b",
+    )
+    if any(re.search(pattern, normalized_question) for pattern in contextual_limitation_patterns):
+        return _intent_contract("dashboard_limitation")
     return _intent_contract(
         "unsupported_question",
         match_status="unsupported",
@@ -783,6 +828,8 @@ def execute_dashboard_intent(contract, data, svs_period=None, selected_player_na
         result = calculate_total_net_excluding_alliances(data, params.get("excluded_alliances", []), svs_period)
     elif intent == "net_score_leader_summary":
         result = calculate_net_score_leader_summary(data, svs_period)
+    elif intent in {"dashboard_help", "dashboard_limitation"}:
+        result = _base_result(intent, "ok", svs_period)
     else:
         raise ValueError(f"unknown intent: {intent}")
     return _attach_routing(result, contract)
@@ -1135,6 +1182,61 @@ def _render_top_contributors(answer):
     return intro + "\n\n" + "\n\n".join(sections)
 
 
+def _render_dashboard_help(answer):
+    return (
+        "## How to use Ask Dashboard\n\n"
+        "1. Select the SVS period and sidebar filters first.\n"
+        "2. Ask about player or alliance scores, rankings, exclusions, or negative contribution.\n"
+        "3. Answers use only the data included by the current filters.\n\n"
+        "Supported areas include player and alliance net-score leaders, positive contribution "
+        "versus negative impact, player exclusions, negative-share changes, top contributors, "
+        "and total net score after excluding named alliances.\n\n"
+        "**Examples:**\n"
+        "- Top net score player\n"
+        "- Which alliance leads net score?\n"
+        "- Who contributed most in SnS?\n"
+        "- What changed after excluding the selected players?\n\n"
+        "**More help:** `help filters`, `help questions`, `help player selection`, or `help limitations`.\n\n"
+        "Ask Dashboard describes recorded score outcomes. It cannot determine a player’s "
+        "motives, intentions, character, skill, strategy, responsibility, or unseen gameplay "
+        "circumstances from score data alone."
+    )
+
+
+def _render_dashboard_limitation(answer):
+    return (
+        "Ask Dashboard cannot determine a player’s behavior, intention, motive, character, "
+        "skill, strategy, responsibility, or unseen gameplay circumstances from score data alone.\n\n"
+        "It can describe recorded outcomes under the current filters, such as score gained, "
+        "score lost, net score, rankings, and contribution totals. The same score outcome may "
+        "arise from different situations that are not recorded in this dataset.\n\n"
+        "You can instead ask for the player’s recorded score gained, score lost, net score, "
+        "or rank in the current scope."
+    )
+
+
+def _parse_svs_period(period):
+    """Return a numeric (year, week) tuple for a strict YYYY-WNN value."""
+    match = re.fullmatch(r"(\d{4})-W(\d{2})", str(period))
+    if not match:
+        return None
+    year, week = map(int, match.groups())
+    if not 1 <= week <= 53:
+        return None
+    return year, week
+
+
+def _should_show_rounded_score_notice(answer):
+    period = _parse_svs_period(answer.get("period"))
+    if period is None or answer.get("status") != "ok":
+        return False
+    if answer.get("intent") not in SCORE_DERIVED_INTENTS:
+        return False
+    return period >= ROUNDED_SCORE_GAINED_START_PERIOD and (
+        ROUNDED_SCORE_GAINED_END_PERIOD is None or period <= ROUNDED_SCORE_GAINED_END_PERIOD
+    )
+
+
 def render_dashboard_answer(answer):
     """Render a structured Ask Dashboard answer as Markdown."""
     if not isinstance(answer, dict):
@@ -1147,10 +1249,15 @@ def render_dashboard_answer(answer):
         "top_contributors": _render_top_contributors,
         "net_score_leader_summary": _render_net_score_leader_summary,
         "player_net_score_leader": _render_player_net_score_leader,
+        "dashboard_help": _render_dashboard_help,
+        "dashboard_limitation": _render_dashboard_limitation,
     }
     renderer = renderers.get(answer.get("intent"))
     if renderer:
-        return renderer(answer)
+        rendered = renderer(answer)
+        if _should_show_rounded_score_notice(answer):
+            rendered += f"\n\n---\n\n{ROUNDED_SCORE_NOTICE}"
+        return rendered
     return _status_message(answer) or ""
 
 def answer_dashboard_question(*args, **kwargs):
