@@ -263,6 +263,7 @@ def route_dashboard_question(question, known_alliance_names=None):
     # still preventing ambiguous human-inference questions from reaching AI.
     contextual_limitation_patterns = (
         r"\b(?:scores?|dashboard)\b.*\b(?:show|tell|determine|prove)\b.*\bwhy\b.*\bplayer\b",
+        r"\bwhy\s+(?:did|does)\b.*\bplayer\b.*\b(?:do|keep|act(?:s|ed|ing)?|play(?:s|ed|ing)?)\b",
         r"\bwhy\b.*\bplayer\b.*\b(?:did|does|acted|played)\b",
         r"\bunseen\s+(?:gameplay|circumstances?|context)\b",
     )

@@ -1874,3 +1874,36 @@ def test_explicit_behavior_and_intent_wording_is_rule_first_limitation(question)
     # that the player behaved or intended to act as alleged in the question.
     assert "the player behaved" not in rendered.casefold()
     assert "the player intended" not in rendered.casefold()
+
+
+@pytest.mark.parametrize("question", [
+    "Why did Player A do this?",
+    "Why does this player keep losing points?",
+    "Why did this player act that way?",
+])
+def test_contextual_auxiliary_before_player_is_rule_first_limitation(question):
+    hybrid = __import__("ask_dashboard").route_dashboard_question_hybrid(
+        question,
+        ["AAA"],
+        ai_enabled=True,
+        ai_extractor=lambda *_: pytest.fail("AI fallback called"),
+    )
+    assert hybrid["contract"]["intent"] == "dashboard_limitation"
+    assert hybrid["ai_attempted"] is False
+
+    answer = execute_dashboard_intent(hybrid["contract"], sample_data(), "2027-W01")
+    rendered = render_dashboard_answer(answer)
+    assert "cannot determine" in rendered
+    assert "unseen gameplay circumstances" in rendered
+    assert "Data note:" not in rendered
+    assert "player acted" not in rendered.casefold()
+    assert "player intended" not in rendered.casefold()
+
+
+@pytest.mark.parametrize(("question", "intent"), [
+    ("Why did the negative percentage increase?", "negative_share_change"),
+    ("Why does the top net-score alliance rank second in positive contribution?", "net_vs_positive_ranking"),
+    ("Why did Player A have the highest net score?", "player_net_score_leader"),
+])
+def test_contextual_limitation_order_preserves_analytical_questions(question, intent):
+    assert route_dashboard_question(question, ["AAA", "BBB"])["intent"] == intent
