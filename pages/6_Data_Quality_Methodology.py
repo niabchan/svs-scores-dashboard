@@ -60,7 +60,6 @@ st.caption(
 
 missing_required = report["missing_required_columns"]
 invalid_numeric_total = sum(report["invalid_numeric_by_column"].values())
-missing_cell_total = sum(report["missing_by_column"].values())
 
 check_rows = pd.DataFrame(
     [
@@ -71,16 +70,22 @@ check_rows = pd.DataFrame(
             "Meaning": "Columns required for dashboard calculations",
         },
         {
-            "Check": "Missing required-field cells",
-            "Result": "Pass" if missing_cell_total == 0 else "Review",
-            "Count": missing_cell_total,
-            "Meaning": "Blank values in required columns",
+            "Check": "Missing identity/result cells",
+            "Result": "Pass" if report["missing_identity_result_count"] == 0 else "Review",
+            "Count": report["missing_identity_result_count"],
+            "Meaning": "Blank period, alliance, player, net-score, or net-status values",
+        },
+        {
+            "Check": "Blank score-side cells",
+            "Result": "Info",
+            "Count": report["blank_score_side_count"],
+            "Meaning": "Blank gained/lost side; treated as zero for formula review",
         },
         {
             "Check": "Non-numeric score values",
             "Result": "Pass" if invalid_numeric_total == 0 else "Review",
             "Count": invalid_numeric_total,
-            "Meaning": "Score cells that cannot be parsed as numbers",
+            "Meaning": "Nonblank score cells that cannot be parsed after removing commas and spaces",
         },
         {
             "Check": "Exact duplicate rows",
@@ -119,7 +124,7 @@ st.dataframe(check_rows, use_container_width=True, hide_index=True)
 with st.expander("Missing and numeric-value details"):
     detail_columns = st.columns(2)
     with detail_columns[0]:
-        st.markdown("**Missing values by required column**")
+        st.markdown("**Missing values by dataset column**")
         st.dataframe(
             pd.DataFrame(
                 [
@@ -149,6 +154,8 @@ st.markdown(
 **Core score calculation**
 
 - `net_score = score_gained − score_lost`
+- Commas and spaces in score text are removed before numeric checks, matching the dashboard’s loading method.
+- A blank `score_gained` or `score_lost` cell represents a one-sided score record and is treated as zero for formula validation. It is shown as information rather than automatically flagged as an error.
 - A positive net score contributes to the dashboard’s positive side.
 - A negative net score contributes to the negative side.
 - Negative contribution charts use the absolute size of negative net scores so their shares are readable as positive percentages.
