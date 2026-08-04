@@ -67,13 +67,15 @@ def test_repository_csv_restores_w23_embedded_whitespace_scores():
     fixed = coerce_numeric_columns(raw, columns)
 
     # The fix may fill values that the legacy loader lost, but it must not
-    # change any value the legacy loader already parsed successfully.
+    # change any value the legacy loader already parsed successfully. A column
+    # may move from float to integer dtype when its former NaNs are restored.
     for column in columns:
         legacy_parsed = legacy[column].notna()
         pd.testing.assert_series_equal(
             fixed.loc[legacy_parsed, column],
             legacy.loc[legacy_parsed, column],
             check_names=False,
+            check_dtype=False,
         )
 
     restored_mask = legacy["net_score"].isna() & fixed["net_score"].notna()
