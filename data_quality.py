@@ -21,9 +21,18 @@ REQUIRED_COLUMNS = (
     "net_status",
 )
 
+IDENTITY_RESULT_COLUMNS = (
+    "svs_date",
+    "alliance",
+    "player_name",
+    "net_score",
+    "net_status",
+)
+SCORE_SIDE_COLUMNS = ("score_gained", "score_lost")
 KEY_COLUMNS = ("svs_date", "alliance", "player_name")
 SCORE_COLUMNS = ("score_gained", "score_lost", "net_score")
 ROUNDED_SCORE_GAINED_START_PERIOD = (2026, 29)
+MISSING_SCORE_TOKENS = {"", "null", "none", "nan", "na", "n/a"}
 
 
 def parse_svs_period(value: Any) -> tuple[int, int] | None:
@@ -47,10 +56,26 @@ def score_gained_precision(period: Any) -> str:
     return "Full-value display"
 
 
+def _normalized_score_text(data: pd.DataFrame, column: str) -> pd.Series:
+    """Normalize score text using the same comma/space rules as the app."""
+    if column not in data.columns:
+        return pd.Series(pd.NA, index=data.index, dtype="string")
+
+    normalized = (
+        data[column]
+        .astype("string")
+        .str.replace(",", "", regex=False)
+        .str.replace(r"\s+", "", regex=True)
+        .str.strip()
+    )
+    missing_like = normalized.str.casefold().isin(MISSING_SCORE_TOKENS)
+    return normalized.mask(missing_like, pd.NA)
+
+
 def _numeric_series(data: pd.DataFrame, column: str) -> pd.Series:
     if column not in data.columns:
         return pd.Series(index=data.index, dtype="float64")
-    return pd.to_numeric(data[column], errors="coerce")
+    return pd.to_numeric(_normalized_score_text(data, column), errors="coerce")
 
 
 def _count_net_status_mismatches(data: pd.DataFrame, numeric_net: pd.Series) -> int:
@@ -107,6 +132,8 @@ def build_data_quality_report(data: pd.DataFrame) -> dict[str, Any]:
 
     Counts are intentionally conservative. A reported duplicate or mismatch is
     a prompt for review, not an automatic conclusion that a record is wrong.
+    Blank gained/lost cells are reported separately because one-sided score
+    records use a blank side as zero for formula validation.
     """
     if not isinstance(data, pd.DataFrame):
         raise TypeError("data must be a pandas DataFrame")
@@ -116,6 +143,12 @@ def build_data_quality_report(data: pd.DataFrame) -> dict[str, Any]:
     missing_by_column = {
         column: int(data[column].isna().sum()) for column in present_required
     }
+    missing_identity_result_count = sum(
+        missing_by_column.get(column, 0) for column in IDENTITY_RESULT_COLUMNS
+    )
+    blank_score_side_count = sum(
+        missing_by_column.get(column, 0) for column in SCORE_SIDE_COLUMNS
+    )
 
     invalid_numeric_by_column: dict[str, int] = {}
     numeric: dict[str, pd.Series] = {}
@@ -123,8 +156,9 @@ def build_data_quality_report(data: pd.DataFrame) -> dict[str, Any]:
         series = _numeric_series(data, column)
         numeric[column] = series
         if column in data.columns:
+            normalized = _normalized_score_text(data, column)
             invalid_numeric_by_column[column] = int(
-                (data[column].notna() & series.isna()).sum()
+                (normalized.notna() & series.isna()).sum()
             )
         else:
             invalid_numeric_by_column[column] = 0
@@ -132,9 +166,10 @@ def build_data_quality_report(data: pd.DataFrame) -> dict[str, Any]:
     exact_duplicate_rows = int(data.duplicated(keep=False).sum()) if not data.empty else 0
 
     if all(column in data.columns for column in KEY_COLUMNS):
-        duplicate_key_rows = int(data.duplicated(list(KEY_COLUMNS), keep=False).sum())
+        duplicate_key_mask = data.duplicated(list(KEY_COLUMNS), keep=False)
+        duplicate_key_rows = int(duplicate_key_mask.sum())
         duplicate_key_groups = int(
-            data.loc[data.duplicated(list(KEY_COLUMNS), keep=False), list(KEY_COLUMNS)]
+            data.loc[duplicate_key_mask, list(KEY_COLUMNS)]
             .drop_duplicates()
             .shape[0]
         )
@@ -143,12 +178,11 @@ def build_data_quality_report(data: pd.DataFrame) -> dict[str, Any]:
         duplicate_key_groups = 0
 
     if all(column in data.columns for column in SCORE_COLUMNS):
-        comparable = (
-            numeric["score_gained"].notna()
-            & numeric["score_lost"].notna()
-            & numeric["net_score"].notna()
+        comparable = numeric["net_score"].notna()
+        expected_net = (
+            numeric["score_gained"].fillna(0)
+            - numeric["score_lost"].fillna(0)
         )
-        expected_net = numeric["score_gained"] - numeric["score_lost"]
         net_formula_mismatch_count = int(
             (comparable & ((expected_net - numeric["net_score"]).abs() > 0.5)).sum()
         )
@@ -166,18 +200,16 @@ def build_data_quality_report(data: pd.DataFrame) -> dict[str, Any]:
             data["svs_date"].dropna().map(parse_svs_period).isna().sum()
         )
 
-    issue_count = (
-        len(missing_required)
-        + sum(missing_by_column.values())
-        + sum(invalid_numeric_by_column.values())
-        + duplicate_key_groups
+    invalid_numeric_total = sum(invalid_numeric_by_column.values())
+    review_issue_count = (
+        duplicate_key_groups
         + net_formula_mismatch_count
         + net_status_mismatch_count
         + malformed_period_count
     )
-    if missing_required or sum(invalid_numeric_by_column.values()):
+    if missing_required or invalid_numeric_total or missing_identity_result_count:
         health = "Needs attention"
-    elif issue_count:
+    elif review_issue_count:
         health = "Review suggested"
     else:
         health = "No issues detected"
@@ -196,6 +228,8 @@ def build_data_quality_report(data: pd.DataFrame) -> dict[str, Any]:
         else 0,
         "missing_required_columns": missing_required,
         "missing_by_column": missing_by_column,
+        "missing_identity_result_count": int(missing_identity_result_count),
+        "blank_score_side_count": int(blank_score_side_count),
         "invalid_numeric_by_column": invalid_numeric_by_column,
         "exact_duplicate_rows": exact_duplicate_rows,
         "duplicate_key_rows": duplicate_key_rows,
