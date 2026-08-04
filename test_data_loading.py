@@ -60,11 +60,21 @@ def test_loader_does_not_mutate_source_dataframe():
     assert loaded.loc[0, "net_score"] == -20
 
 
-def test_repository_csv_loader_impact_diagnostic():
+def test_repository_csv_restores_w23_embedded_whitespace_scores():
     raw = pd.read_csv("svs_scores_utf8.csv")
     columns = ["score_gained", "score_lost", "net_score", "competition_rank"]
     legacy = legacy_coerce_numeric_columns(raw, columns)
     fixed = coerce_numeric_columns(raw, columns)
+
+    # The fix may fill values that the legacy loader lost, but it must not
+    # change any value the legacy loader already parsed successfully.
+    for column in columns:
+        legacy_parsed = legacy[column].notna()
+        pd.testing.assert_series_equal(
+            fixed.loc[legacy_parsed, column],
+            legacy.loc[legacy_parsed, column],
+            check_names=False,
+        )
 
     restored_mask = legacy["net_score"].isna() & fixed["net_score"].notna()
     restored = raw.loc[
@@ -72,16 +82,18 @@ def test_repository_csv_loader_impact_diagnostic():
         ["svs_date", "alliance", "player_name", "net_score"],
     ].copy()
 
-    w23 = raw["svs_date"].astype(str) == "2026-W23"
-    legacy_w23_total = legacy.loc[w23, "net_score"].sum()
-    fixed_w23_total = fixed.loc[w23, "net_score"].sum()
+    assert restored["svs_date"].unique().tolist() == ["2026-W23"]
+    assert restored["player_name"].tolist() == [
+        "Laura IFL",
+        "Vï†åru§h",
+        "FARA&T",
+        "yoshi55",
+        "Eduardo_🐉",
+        "moon",
+        "KissM€",
+    ]
+    assert fixed.loc[restored_mask, "net_score"].sum() == -879_261_477
 
-    raise AssertionError(
-        {
-            "restored_rows": restored.to_dict(orient="records"),
-            "restored_count": int(restored_mask.sum()),
-            "legacy_w23_total": int(legacy_w23_total),
-            "fixed_w23_total": int(fixed_w23_total),
-            "w23_difference": int(fixed_w23_total - legacy_w23_total),
-        }
-    )
+    w23 = raw["svs_date"].astype(str) == "2026-W23"
+    assert legacy.loc[w23, "net_score"].sum() == -3_290_642_308
+    assert fixed.loc[w23, "net_score"].sum() == -4_169_903_785
