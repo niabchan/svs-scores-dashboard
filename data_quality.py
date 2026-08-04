@@ -56,8 +56,8 @@ def score_gained_precision(period: Any) -> str:
     return "Full-value display"
 
 
-def _normalized_score_text(data: pd.DataFrame, column: str) -> pd.Series:
-    """Normalize score text using the same comma/space rules as the app."""
+def _app_normalized_score_text(data: pd.DataFrame, column: str) -> pd.Series:
+    """Normalize score text exactly as the current dashboard loader does."""
     if column not in data.columns:
         return pd.Series(pd.NA, index=data.index, dtype="string")
 
@@ -65,17 +65,26 @@ def _normalized_score_text(data: pd.DataFrame, column: str) -> pd.Series:
         data[column]
         .astype("string")
         .str.replace(",", "", regex=False)
-        .str.replace(r"\s+", "", regex=True)
         .str.strip()
     )
     missing_like = normalized.str.casefold().isin(MISSING_SCORE_TOKENS)
     return normalized.mask(missing_like, pd.NA)
 
 
-def _numeric_series(data: pd.DataFrame, column: str) -> pd.Series:
-    if column not in data.columns:
-        return pd.Series(index=data.index, dtype="float64")
-    return pd.to_numeric(_normalized_score_text(data, column), errors="coerce")
+def _relaxed_score_text(data: pd.DataFrame, column: str) -> pd.Series:
+    """Remove all whitespace to identify formatting-only parse failures."""
+    return _app_normalized_score_text(data, column).str.replace(
+        r"\s+", "", regex=True
+    )
+
+
+def _app_numeric_series(data: pd.DataFrame, column: str) -> pd.Series:
+    return pd.to_numeric(_app_normalized_score_text(data, column), errors="coerce")
+
+
+def _review_numeric_series(data: pd.DataFrame, column: str) -> pd.Series:
+    """Parse formatting-recoverable values for source formula review."""
+    return pd.to_numeric(_relaxed_score_text(data, column), errors="coerce")
 
 
 def _count_net_status_mismatches(data: pd.DataFrame, numeric_net: pd.Series) -> int:
@@ -151,17 +160,20 @@ def build_data_quality_report(data: pd.DataFrame) -> dict[str, Any]:
     )
 
     invalid_numeric_by_column: dict[str, int] = {}
+    loader_formatting_by_column: dict[str, int] = {}
     numeric: dict[str, pd.Series] = {}
     for column in SCORE_COLUMNS:
-        series = _numeric_series(data, column)
-        numeric[column] = series
-        if column in data.columns:
-            normalized = _normalized_score_text(data, column)
-            invalid_numeric_by_column[column] = int(
-                (normalized.notna() & series.isna()).sum()
-            )
-        else:
-            invalid_numeric_by_column[column] = 0
+        app_text = _app_normalized_score_text(data, column)
+        app_numeric = _app_numeric_series(data, column)
+        review_numeric = _review_numeric_series(data, column)
+        numeric[column] = review_numeric
+
+        loader_formatting_by_column[column] = int(
+            (app_text.notna() & app_numeric.isna() & review_numeric.notna()).sum()
+        )
+        invalid_numeric_by_column[column] = int(
+            (app_text.notna() & review_numeric.isna()).sum()
+        )
 
     exact_duplicate_rows = int(data.duplicated(keep=False).sum()) if not data.empty else 0
 
@@ -201,13 +213,19 @@ def build_data_quality_report(data: pd.DataFrame) -> dict[str, Any]:
         )
 
     invalid_numeric_total = sum(invalid_numeric_by_column.values())
+    loader_formatting_total = sum(loader_formatting_by_column.values())
     review_issue_count = (
         duplicate_key_groups
         + net_formula_mismatch_count
         + net_status_mismatch_count
         + malformed_period_count
     )
-    if missing_required or invalid_numeric_total or missing_identity_result_count:
+    if (
+        missing_required
+        or invalid_numeric_total
+        or loader_formatting_total
+        or missing_identity_result_count
+    ):
         health = "Needs attention"
     elif review_issue_count:
         health = "Review suggested"
@@ -230,6 +248,7 @@ def build_data_quality_report(data: pd.DataFrame) -> dict[str, Any]:
         "missing_by_column": missing_by_column,
         "missing_identity_result_count": int(missing_identity_result_count),
         "blank_score_side_count": int(blank_score_side_count),
+        "loader_formatting_by_column": loader_formatting_by_column,
         "invalid_numeric_by_column": invalid_numeric_by_column,
         "exact_duplicate_rows": exact_duplicate_rows,
         "duplicate_key_rows": duplicate_key_rows,
