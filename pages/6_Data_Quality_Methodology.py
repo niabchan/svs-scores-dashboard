@@ -60,6 +60,7 @@ st.caption(
 
 missing_required = report["missing_required_columns"]
 invalid_numeric_total = sum(report["invalid_numeric_by_column"].values())
+loader_formatting_total = sum(report["loader_formatting_by_column"].values())
 
 check_rows = pd.DataFrame(
     [
@@ -82,10 +83,16 @@ check_rows = pd.DataFrame(
             "Meaning": "Blank gained/lost side; treated as zero for formula review",
         },
         {
-            "Check": "Non-numeric score values",
+            "Check": "Loader-incompatible number formatting",
+            "Result": "Pass" if loader_formatting_total == 0 else "Review",
+            "Count": loader_formatting_total,
+            "Meaning": "Numeric text recoverable after removing embedded spaces, but not parsed by the current loader",
+        },
+        {
+            "Check": "Invalid score values",
             "Result": "Pass" if invalid_numeric_total == 0 else "Review",
             "Count": invalid_numeric_total,
-            "Meaning": "Nonblank score cells that cannot be parsed after removing commas and spaces",
+            "Meaning": "Nonblank score cells that remain non-numeric after formatting cleanup",
         },
         {
             "Check": "Exact duplicate rows",
@@ -103,13 +110,13 @@ check_rows = pd.DataFrame(
             "Check": "Net-score formula",
             "Result": "Pass" if report["net_formula_mismatch_count"] == 0 else "Review",
             "Count": report["net_formula_mismatch_count"],
-            "Meaning": "Rows where score gained − score lost differs from net score",
+            "Meaning": "Rows where score gained − score lost differs from net score after recoverable formatting cleanup",
         },
         {
             "Check": "Net-status label",
             "Result": "Pass" if report["net_status_mismatch_count"] == 0 else "Review",
             "Count": report["net_status_mismatch_count"],
-            "Meaning": "Positive/negative/zero label does not match the net-score sign",
+            "Meaning": "Positive/negative/zero label does not match the recoverable net-score sign",
         },
         {
             "Check": "SVS period format",
@@ -122,7 +129,7 @@ check_rows = pd.DataFrame(
 st.dataframe(check_rows, use_container_width=True, hide_index=True)
 
 with st.expander("Missing and numeric-value details"):
-    detail_columns = st.columns(2)
+    detail_columns = st.columns(3)
     with detail_columns[0]:
         st.markdown("**Missing values by dataset column**")
         st.dataframe(
@@ -136,11 +143,23 @@ with st.expander("Missing and numeric-value details"):
             hide_index=True,
         )
     with detail_columns[1]:
-        st.markdown("**Non-numeric values by score column**")
+        st.markdown("**Loader-formatting issues**")
         st.dataframe(
             pd.DataFrame(
                 [
-                    {"Column": column, "Non-numeric": count}
+                    {"Column": column, "Formatting issue": count}
+                    for column, count in report["loader_formatting_by_column"].items()
+                ]
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+    with detail_columns[2]:
+        st.markdown("**Invalid values by score column**")
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {"Column": column, "Invalid": count}
                     for column, count in report["invalid_numeric_by_column"].items()
                 ]
             ),
@@ -154,7 +173,9 @@ st.markdown(
 **Core score calculation**
 
 - `net_score = score_gained − score_lost`
-- Commas and spaces in score text are removed before numeric checks, matching the dashboard’s loading method.
+- The current dashboard loader removes commas and trims leading/trailing spaces before numeric conversion.
+- Embedded whitespace, such as the space in `- 546,738,937`, is shown separately because the value is numerically recoverable but may not be parsed by the current loader.
+- This preview report removes embedded whitespace only for source formula review; it does not change the dashboard loader or displayed results.
 - A blank `score_gained` or `score_lost` cell represents a one-sided score record and is treated as zero for formula validation. It is shown as information rather than automatically flagged as an error.
 - A positive net score contributes to the dashboard’s positive side.
 - A negative net score contributes to the negative side.
@@ -179,6 +200,6 @@ st.markdown(
 st.subheader("How to interpret this page")
 st.markdown(
     """
-This report is a transparency layer rather than an automatic cleaning tool. It deliberately leaves source records unchanged. A reviewer should examine the original collection context before correcting any flagged entry, especially where rounding, name changes, alliance movement, or repeated collection could explain an apparent anomaly.
+This report is a transparency layer rather than an automatic cleaning tool. It deliberately leaves source records unchanged. A reviewer should examine the original collection context before correcting any flagged entry, especially where formatting, rounding, name changes, alliance movement, or repeated collection could explain an apparent anomaly.
 """
 )
