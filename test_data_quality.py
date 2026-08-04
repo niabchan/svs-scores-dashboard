@@ -65,6 +65,7 @@ def test_clean_report_has_expected_counts_and_no_issues():
     assert report["missing_required_columns"] == []
     assert report["missing_identity_result_count"] == 0
     assert report["blank_score_side_count"] == 0
+    assert sum(report["loader_formatting_by_column"].values()) == 0
     assert report["exact_duplicate_rows"] == 0
     assert report["duplicate_key_groups"] == 0
     assert report["net_formula_mismatch_count"] == 0
@@ -86,7 +87,7 @@ def test_period_summary_reports_coverage_and_precision():
     ]
 
 
-def test_raw_comma_space_and_negative_score_text_is_parsed_like_dashboard():
+def test_commas_and_outer_spaces_match_loader_but_embedded_minus_space_is_flagged():
     data = sample_quality_data().astype("object")
     data.loc[0, "score_gained"] = " 1,000 "
     data.loc[0, "score_lost"] = " 400 "
@@ -98,8 +99,10 @@ def test_raw_comma_space_and_negative_score_text_is_parsed_like_dashboard():
     report = build_data_quality_report(data)
 
     assert sum(report["invalid_numeric_by_column"].values()) == 0
+    assert report["loader_formatting_by_column"]["net_score"] == 1
     assert report["net_formula_mismatch_count"] == 0
     assert report["net_status_mismatch_count"] == 0
+    assert report["health"] == "Needs attention"
 
 
 def test_report_flags_missing_columns_and_invalid_numbers():
@@ -112,6 +115,7 @@ def test_report_flags_missing_columns_and_invalid_numbers():
     assert report["health"] == "Needs attention"
     assert report["missing_required_columns"] == ["net_status"]
     assert report["invalid_numeric_by_column"]["score_gained"] == 1
+    assert report["loader_formatting_by_column"]["score_gained"] == 0
 
 
 def test_blank_score_side_is_information_and_zero_for_formula_review():
@@ -188,6 +192,7 @@ def test_repository_csv_builds_a_stable_report():
     assert report["missing_required_columns"] == []
     assert not report["period_summary"].empty
     assert sum(report["invalid_numeric_by_column"].values()) == 0
+    assert "loader_formatting_by_column" in report
 
 
 def test_preview_page_compiles():
