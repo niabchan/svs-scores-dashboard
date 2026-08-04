@@ -83,6 +83,7 @@ def test_period_summary_reports_coverage_and_precision():
 
 def test_report_flags_missing_columns_and_invalid_numbers():
     data = sample_quality_data().drop(columns=["net_status"])
+    data["score_gained"] = data["score_gained"].astype("object")
     data.loc[0, "score_gained"] = "not-a-number"
 
     report = build_data_quality_report(data)
