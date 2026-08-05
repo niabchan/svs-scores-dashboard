@@ -661,6 +661,14 @@ from ask_dashboard import (
     safely_append_question_log_record,
     render_dashboard_answer,
 )
+from usage_analytics import (
+    DEFAULT_LOCAL_PATH,
+    build_answer_event,
+    build_feedback_event,
+    load_local_events,
+    safely_persist_event,
+    summarize_events,
+)
 
 
 def _truthy_env(name):
@@ -673,6 +681,37 @@ def _secret_or_env(name):
     except Exception:
         value = None
     return value or os.environ.get(name)
+
+
+def _truthy_setting(name):
+    return str(_secret_or_env(name) or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _analytics_config():
+    return {
+        "mode": str(_secret_or_env("ASK_DASHBOARD_ANALYTICS_MODE") or "local").strip().lower(),
+        "local_path": str(
+            _secret_or_env("ASK_DASHBOARD_ANALYTICS_LOCAL_PATH") or DEFAULT_LOCAL_PATH
+        ),
+        "endpoint": _secret_or_env("ASK_DASHBOARD_ANALYTICS_ENDPOINT"),
+        "bearer_token": _secret_or_env("ASK_DASHBOARD_ANALYTICS_TOKEN"),
+        "shared_secret": _secret_or_env("ASK_DASHBOARD_ANALYTICS_SHARED_SECRET"),
+        "app_version": str(_secret_or_env("ASK_DASHBOARD_APP_VERSION") or "preview-unknown"),
+    }
+
+
+def _persist_preview_analytics(event):
+    config = _analytics_config()
+    result = safely_persist_event(
+        event,
+        mode=config["mode"],
+        local_path=config["local_path"],
+        endpoint=config["endpoint"],
+        bearer_token=config["bearer_token"],
+        shared_secret=config["shared_secret"],
+    )
+    st.session_state["ask_dashboard_analytics_last_result"] = result
+    return result
 
 
 def _build_ai_intent_router():
@@ -765,12 +804,34 @@ def ask_dashboard_dialog():
         f"{total_players_in_scope}"
     )
 
+    analytics_config = _analytics_config()
+    with st.expander("Preview analytics & privacy", expanded=False):
+        if analytics_config["mode"] == "local":
+            st.caption(
+                "Anonymous routing metadata and feedback are saved to a best-effort local file "
+                "on this running preview instance. It can persist across browser sessions, but "
+                "may reset when Streamlit restarts or redeploys."
+            )
+        elif analytics_config["mode"] == "webhook":
+            st.caption(
+                "Anonymous routing metadata and feedback are sent to the configured HTTPS "
+                "analytics endpoint."
+            )
+        else:
+            st.caption("Persistent preview analytics are currently disabled.")
+        st.caption(
+            "A custom question and its generated answer are saved only when you explicitly opt in. "
+            "The analytics event does not collect IP addresses, browser fingerprints, API keys, "
+            "score rows, or selected player names."
+        )
+
     suggested_question = st.selectbox(
         "Choose a suggested question",
         SUGGESTED_QUESTIONS,
     )
 
     custom_question = ""
+    include_full_text = False
 
     if suggested_question == QUESTION_CUSTOM:
         st.caption(
@@ -787,10 +848,23 @@ def ask_dashboard_dialog():
             ),
         )
 
+        include_full_text = st.checkbox(
+            "Allow this custom question and its generated answer to be saved for improving Ask Dashboard",
+            value=False,
+            help=(
+                "When unchecked, only anonymous routing metadata is saved. Avoid entering private "
+                "information even when opting in."
+            ),
+        )
+
     question = (
         custom_question.strip()
         if suggested_question == QUESTION_CUSTOM
         else suggested_question
+    )
+
+    question_kind = (
+        "custom" if suggested_question == QUESTION_CUSTOM else "suggested"
     )
 
     if st.button(
@@ -831,10 +905,111 @@ def ask_dashboard_dialog():
             st.session_state["ask_dashboard_logging_error"] = logging_error
         else:
             st.session_state.pop("ask_dashboard_logging_error", None)
-        st.markdown("### Explanation")
-        st.markdown(render_dashboard_answer(answer))
 
-    if os.environ.get("ASK_DASHBOARD_DEBUG_LOG", "").strip().lower() in {"1", "true", "yes", "on"}:
+        rendered_answer = render_dashboard_answer(answer)
+        try:
+            answer_event = build_answer_event(
+                answer,
+                rendered_answer,
+                question_kind=question_kind,
+                ui_language=st.session_state.get("lang", "en"),
+                suggested_question=(
+                    suggested_question if question_kind == "suggested" else None
+                ),
+                include_full_text=include_full_text,
+                selected_alliance_count=len(selected_alliances),
+                selected_net_status_count=len(selected_net_status),
+                selected_player_count=len(current_selected_players),
+                total_player_count=total_players_in_scope,
+                app_version=analytics_config["app_version"],
+            )
+            analytics_result = _persist_preview_analytics(answer_event)
+            if analytics_result.get("ok"):
+                st.session_state["ask_dashboard_last_answer_event_id"] = answer_event["event_id"]
+                st.session_state["ask_dashboard_feedback_submitted_for"] = None
+            else:
+                st.session_state.pop("ask_dashboard_last_answer_event_id", None)
+        except Exception as exc:
+            st.session_state["ask_dashboard_analytics_last_result"] = {
+                "ok": False,
+                "mode": _analytics_config()["mode"],
+                "diagnostic": f"{type(exc).__name__}",
+            }
+            st.session_state.pop("ask_dashboard_last_answer_event_id", None)
+
+        st.session_state["ask_dashboard_last_question"] = question
+        st.session_state["ask_dashboard_last_rendered_answer"] = rendered_answer
+
+    last_question = st.session_state.get("ask_dashboard_last_question")
+    last_rendered_answer = st.session_state.get("ask_dashboard_last_rendered_answer")
+    last_answer_event_id = st.session_state.get("ask_dashboard_last_answer_event_id")
+    if last_rendered_answer and last_question == question:
+        st.markdown("### Explanation")
+        st.markdown(last_rendered_answer)
+
+        if last_answer_event_id:
+            if st.session_state.get("ask_dashboard_feedback_submitted_for") == last_answer_event_id:
+                st.success("Thank you — your feedback was recorded.")
+            else:
+                st.markdown("#### Was this answer helpful?")
+                feedback_choice = st.radio(
+                    "Answer quality",
+                    ["Choose…", "Helpful", "Not helpful"],
+                    horizontal=True,
+                    label_visibility="collapsed",
+                    key=f"ask_dashboard_feedback_choice_{last_answer_event_id}",
+                )
+                feedback_reason = None
+                if feedback_choice == "Not helpful":
+                    reason_label = st.selectbox(
+                        "What went wrong?",
+                        [
+                            "It misunderstood my question",
+                            "The answer was incorrect",
+                            "My question is not supported",
+                            "The answer was unclear",
+                            "Other",
+                        ],
+                        key=f"ask_dashboard_feedback_reason_{last_answer_event_id}",
+                    )
+                    feedback_reason = {
+                        "It misunderstood my question": "misunderstood_question",
+                        "The answer was incorrect": "wrong_answer",
+                        "My question is not supported": "unsupported_question",
+                        "The answer was unclear": "unclear_answer",
+                        "Other": "other",
+                    }[reason_label]
+                elif feedback_choice == "Helpful":
+                    feedback_reason = "correct_and_clear"
+
+                feedback_comment = st.text_area(
+                    "Optional comment",
+                    placeholder="Tell us what worked or what you expected. Do not include private information.",
+                    key=f"ask_dashboard_feedback_comment_{last_answer_event_id}",
+                )
+                if st.button(
+                    "Submit feedback",
+                    disabled=feedback_choice == "Choose…",
+                    key=f"ask_dashboard_feedback_submit_{last_answer_event_id}",
+                ):
+                    try:
+                        feedback_event = build_feedback_event(
+                            last_answer_event_id,
+                            helpful=feedback_choice == "Helpful",
+                            reason=feedback_reason,
+                            comment=feedback_comment.strip() or None,
+                            app_version=analytics_config["app_version"],
+                        )
+                        result = _persist_preview_analytics(feedback_event)
+                        if result.get("ok"):
+                            st.session_state["ask_dashboard_feedback_submitted_for"] = last_answer_event_id
+                            st.rerun()
+                        else:
+                            st.warning("Feedback could not be saved on this preview instance.")
+                    except Exception:
+                        st.warning("Feedback could not be saved on this preview instance.")
+
+    if _truthy_setting("ASK_DASHBOARD_DEBUG_LOG"):
         records = st.session_state.get("ask_dashboard_question_log", [])
         with st.expander("Developer: Question analysis log", expanded=False):
             st.caption(f"{len(records)} record(s) in the current Streamlit session.")
@@ -858,6 +1033,60 @@ def ask_dashboard_dialog():
                     file_name="ask_dashboard_question_log.json",
                     mime="application/json",
                 )
+
+            analytics_config = _analytics_config()
+            analytics_result = st.session_state.get("ask_dashboard_analytics_last_result")
+            if analytics_result:
+                st.caption(
+                    f"Persistent analytics mode: {analytics_result.get('mode')} | "
+                    f"last write: {'ok' if analytics_result.get('ok') else analytics_result.get('diagnostic')}"
+                )
+            if analytics_config["mode"] == "local":
+                admin_password = _secret_or_env("ASK_DASHBOARD_ANALYTICS_ADMIN_PASSWORD")
+                if admin_password:
+                    entered_password = st.text_input(
+                        "Analytics admin password",
+                        type="password",
+                        key="ask_dashboard_analytics_admin_password_input",
+                    )
+                    if entered_password == str(admin_password):
+                        persistent_events, malformed_count = load_local_events(
+                            analytics_config["local_path"]
+                        )
+                        summary = summarize_events(persistent_events)
+                        metric_columns = st.columns(4)
+                        metric_columns[0].metric("Answers", summary["answer_count"])
+                        metric_columns[1].metric("Feedback", summary["feedback_count"])
+                        helpful_rate = summary["helpful_rate"]
+                        metric_columns[2].metric(
+                            "Helpful rate",
+                            "—" if helpful_rate is None else f"{helpful_rate:.1f}%",
+                        )
+                        unsupported_rate = summary["unsupported_rate"]
+                        metric_columns[3].metric(
+                            "Unsupported rate",
+                            "—" if unsupported_rate is None else f"{unsupported_rate:.1f}%",
+                        )
+                        if malformed_count:
+                            st.caption(f"Skipped malformed analytics records: {malformed_count}")
+                        st.json(summary)
+                        if persistent_events:
+                            st.dataframe(persistent_events, use_container_width=True)
+                            st.download_button(
+                                "Download persistent analytics JSON",
+                                data=json.dumps(persistent_events, ensure_ascii=False, indent=2),
+                                file_name="ask_dashboard_persistent_analytics.json",
+                                mime="application/json",
+                            )
+                else:
+                    st.caption(
+                        "Set ASK_DASHBOARD_ANALYTICS_ADMIN_PASSWORD to enable local analytics review."
+                    )
+            elif analytics_config["mode"] == "webhook":
+                st.caption(
+                    "Webhook events are reviewed in the configured analytics backend."
+                )
+
             if st.button("Clear question analysis log"):
                 st.session_state["ask_dashboard_question_log"] = []
                 st.rerun()

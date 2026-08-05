@@ -50,6 +50,7 @@ SUPPORTED_DASHBOARD_INTENTS = {
     "top_contributors",
     "alliance_exclusion_total_net",
     "net_score_leader_summary",
+    "alliance_score_overview",
     "player_net_score_leader",
     "dashboard_help",
     "dashboard_limitation",
@@ -81,6 +82,8 @@ EXPLICIT_PLAYER_SUBJECT_TERMS = {"player", "players"}
 WHO_SUBJECT_TERMS = {"who"}
 ALLIANCE_SUBJECT_TERMS = {"alliance", "alliances"}
 POSITIVE_RANK_TERMS = {"positive contribution", "positive rank", "positive ranking", "first in positive", "top in positive"}
+GENERIC_ALLIANCE_SCORE_RANK_TERMS = {"top", "highest", "best", "lead", "leads", "leader", "leading", "winner", "first"}
+EXPLICIT_ALLIANCE_SCORE_METRIC_TERMS = {"gained", "gain", "lost", "loss", "positive", "negative", "contribution", "impact"}
 
 
 def _has_any_word(text, terms):
@@ -294,6 +297,27 @@ def route_dashboard_question(question, known_alliance_names=None):
         )
     if asks_about_contributors and ("alliance" in normalized_question or mentioned_alliances):
         return _intent_contract("top_contributors", {"alliance_names": mentioned_alliances})
+
+    has_generic_score_word = bool(
+        re.search(r"\bscor(?:e|es|ing)\b|\bscore[ -]leading\b", normalized_question)
+    )
+    asks_about_generic_alliance_score = (
+        has_alliance_subject
+        and has_generic_score_word
+        and (
+            _has_any_word(normalized_question, GENERIC_ALLIANCE_SCORE_RANK_TERMS)
+            or _has_any_phrase(normalized_question, {"score leader", "score-leading"})
+        )
+        and not has_net_score_context
+        and not has_exclusion_term
+        and not _has_any_word(normalized_question, EXPLICIT_ALLIANCE_SCORE_METRIC_TERMS)
+        and not _has_any_phrase(
+            normalized_question,
+            {"score gained", "score lost", "positive contribution", "negative impact"},
+        )
+    )
+    if asks_about_generic_alliance_score:
+        return _intent_contract("alliance_score_overview")
 
     # Indirect human-inference wording is checked only after every supported
     # score analysis. It intentionally does not depend on knowing the subject's
@@ -667,6 +691,55 @@ def calculate_net_score_leader_summary(data, svs_period=None):
     return _base_result(intent, "ok", svs_period, metrics=metrics, rankings={"alliances": records})
 
 
+def calculate_alliance_score_overview(data, svs_period=None):
+    """Summarize alliance leaders across several score dimensions."""
+    intent = "alliance_score_overview"
+    required = {"alliance", "score_gained", "score_lost", "net_score"}
+    missing = required.difference(data.columns)
+    if missing:
+        return _missing_columns_result(intent, missing, svs_period)
+
+    df = _numeric_scope(
+        data,
+        ["alliance", "score_gained", "score_lost", "net_score"],
+    ).dropna(subset=["alliance"])
+    if df.empty:
+        return _base_result(intent, "guidance", svs_period, "empty_score_scope")
+
+    summary = df.groupby("alliance", as_index=False).agg(
+        total_score_gained=("score_gained", "sum"),
+        total_score_lost=("score_lost", "sum"),
+        total_net_score=("net_score", "sum"),
+        positive_contribution=(
+            "net_score",
+            lambda scores: scores[scores > 0].sum(),
+        ),
+    )
+
+    def leaders(column, *, lowest=False):
+        best_value = summary[column].min() if lowest else summary[column].max()
+        return (
+            summary[summary[column] == best_value]
+            .sort_values("alliance")
+            .to_dict("records")
+        )
+
+    metrics = {
+        "alliance_count": summary["alliance"].nunique(),
+        "net_score_leaders": leaders("total_net_score"),
+        "score_gained_leaders": leaders("total_score_gained"),
+        "lowest_score_lost_leaders": leaders("total_score_lost", lowest=True),
+        "positive_contribution_leaders": leaders("positive_contribution"),
+    }
+    rankings = {
+        "alliances": summary.sort_values(
+            ["total_net_score", "total_score_gained", "alliance"],
+            ascending=[False, False, True],
+        ).to_dict("records")
+    }
+    return _base_result(intent, "ok", svs_period, metrics=metrics, rankings=rankings)
+
+
 def _player_scope(data, include_status=False):
     cols = ["player_name", "score_gained", "score_lost", "net_score"] + (["net_status"] if include_status and "net_status" in data.columns else [])
     return _numeric_scope(data, cols).dropna(subset=["player_name", "net_score"])
@@ -859,6 +932,8 @@ def execute_dashboard_intent(contract, data, svs_period=None, selected_player_na
         result = calculate_total_net_excluding_alliances(data, params.get("excluded_alliances", []), svs_period)
     elif intent == "net_score_leader_summary":
         result = calculate_net_score_leader_summary(data, svs_period)
+    elif intent == "alliance_score_overview":
+        result = calculate_alliance_score_overview(data, svs_period)
     elif intent in {"dashboard_help", "dashboard_limitation"}:
         result = _base_result(intent, "ok", svs_period)
     else:
@@ -1085,6 +1160,32 @@ def _render_net_score_leader_summary(answer):
     )
 
 
+def _render_alliance_score_overview(answer):
+    guidance = _status_message(answer)
+    if guidance:
+        return guidance
+
+    metrics = answer["metrics"]
+    period_text = _period_text(answer.get("period"))
+
+    def metric_line(label, rows, field, *, signed=False):
+        names = ", ".join(f"**{row['alliance']}**" for row in rows)
+        value = rows[0][field]
+        formatted = format_signed_score(value) if signed else format_score(value)
+        tie_note = " (tie)" if len(rows) > 1 else ""
+        return f"- **{label}:** {names} — **{formatted}**{tie_note}"
+
+    return (
+        f"Score can refer to several metrics. Under the current sidebar filters{period_text}:\n\n"
+        f"{metric_line('Overall leader by net score', metrics['net_score_leaders'], 'total_net_score', signed=True)}\n"
+        f"{metric_line('Highest score gained', metrics['score_gained_leaders'], 'total_score_gained')}\n"
+        f"{metric_line('Lowest score lost', metrics['lowest_score_lost_leaders'], 'total_score_lost')}\n"
+        f"{metric_line('Highest positive contribution', metrics['positive_contribution_leaders'], 'positive_contribution')}\n\n"
+        "For a broad question about overall alliance performance, Ask Dashboard uses net score as the default measure. "
+        "Name a metric such as score gained, score lost, net score, or positive contribution when you want one specific ranking."
+    )
+
+
 def _excluded_text(players):
     if len(players) <= 5:
         return ", ".join(map(str, players))
@@ -1219,11 +1320,12 @@ def _render_dashboard_help(answer):
         "1. Select the SVS period and sidebar filters first.\n"
         "2. Ask about player or alliance scores, rankings, exclusions, or negative contribution.\n"
         "3. Answers use only the data included by the current filters.\n\n"
-        "Supported areas include player and alliance net-score leaders, positive contribution "
+        "Supported areas include broad alliance score overviews, player and alliance net-score leaders, positive contribution "
         "versus negative impact, player exclusions, negative-share changes, top contributors, "
         "and total net score after excluding named alliances.\n\n"
         "**Examples:**\n"
         "- Top net score player\n"
+        "- Top alliance score\n"
         "- Which alliance leads net score?\n"
         "- Who contributed most in SnS?\n"
         "- What changed after excluding the selected players?\n\n"
@@ -1279,6 +1381,7 @@ def render_dashboard_answer(answer):
         "negative_share_change": _render_negative_share,
         "top_contributors": _render_top_contributors,
         "net_score_leader_summary": _render_net_score_leader_summary,
+        "alliance_score_overview": _render_alliance_score_overview,
         "player_net_score_leader": _render_player_net_score_leader,
         "dashboard_help": _render_dashboard_help,
         "dashboard_limitation": _render_dashboard_limitation,
