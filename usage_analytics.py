@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+from threading import Lock
 from typing import Any
 from urllib import request
 from uuid import uuid4
@@ -33,6 +34,7 @@ MAX_QUESTION_CHARS = 1_500
 MAX_ANSWER_CHARS = 8_000
 MAX_COMMENT_CHARS = 1_500
 MAX_EVENT_BYTES = 64_000
+_LOCAL_WRITE_LOCK = Lock()
 
 
 def _utc_timestamp(value: Any = None) -> str:
@@ -74,10 +76,31 @@ def _validate_event(event: dict[str, Any]) -> dict[str, Any]:
         raise TypeError("analytics event must be a dictionary")
     if event.get("schema_version") != ANALYTICS_SCHEMA_VERSION:
         raise ValueError("unsupported analytics schema_version")
-    if event.get("event_type") not in ANALYTICS_EVENT_TYPES:
+    event_type = event.get("event_type")
+    if event_type not in ANALYTICS_EVENT_TYPES:
         raise ValueError("unsupported analytics event_type")
     if not isinstance(event.get("event_id"), str) or not event["event_id"].strip():
         raise ValueError("analytics event_id is required")
+
+    if event_type == "answer_generated":
+        if event.get("question_kind") not in QUESTION_KINDS:
+            raise ValueError("answer event question_kind is invalid")
+        if not isinstance(event.get("full_text_consent"), bool):
+            raise ValueError("answer event full_text_consent must be boolean")
+        if not event["full_text_consent"] and (
+            event.get("question_text") is not None or event.get("answer_text") is not None
+        ):
+            raise ValueError("answer full text requires consent")
+    else:
+        answer_event_id = event.get("answer_event_id")
+        if not isinstance(answer_event_id, str) or not answer_event_id.strip():
+            raise ValueError("feedback answer_event_id is required")
+        if not isinstance(event.get("helpful"), bool):
+            raise ValueError("feedback helpful must be boolean")
+        reason = event.get("reason")
+        if reason is not None and reason not in FEEDBACK_REASONS:
+            raise ValueError("feedback reason is invalid")
+
     normalized = _json_value(event)
     encoded = json.dumps(normalized, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if len(encoded) > MAX_EVENT_BYTES:
@@ -166,6 +189,8 @@ def build_feedback_event(
     event_id: str | None = None,
 ) -> dict[str, Any]:
     """Build feedback linked to a previously generated answer event."""
+    if not isinstance(answer_event_id, str) or not answer_event_id.strip():
+        raise ValueError("answer_event_id is required")
     if not isinstance(helpful, bool):
         raise TypeError("helpful must be a boolean")
     if reason is not None and reason not in FEEDBACK_REASONS:
@@ -174,7 +199,7 @@ def build_feedback_event(
         "schema_version": ANALYTICS_SCHEMA_VERSION,
         "event_type": "feedback_submitted",
         "event_id": event_id or str(uuid4()),
-        "answer_event_id": str(answer_event_id),
+        "answer_event_id": answer_event_id,
         "timestamp_utc": _utc_timestamp(timestamp_utc),
         "app_variant": str(app_variant),
         "helpful": helpful,
@@ -189,13 +214,22 @@ def append_local_event(path: str, event: dict[str, Any]) -> None:
     normalized = _validate_event(event)
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(normalized, ensure_ascii=False, separators=(",", ":")) + "\n"
+    payload = (
+        json.dumps(normalized, ensure_ascii=False, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
     flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
-    fd = os.open(target, flags, 0o600)
-    try:
-        os.write(fd, line.encode("utf-8"))
-    finally:
-        os.close(fd)
+
+    with _LOCAL_WRITE_LOCK:
+        fd = os.open(target, flags, 0o600)
+        try:
+            remaining = memoryview(payload)
+            while remaining:
+                written = os.write(fd, remaining)
+                if written <= 0:
+                    raise OSError("analytics write returned no progress")
+                remaining = remaining[written:]
+        finally:
+            os.close(fd)
 
 
 def post_webhook_event(
@@ -251,7 +285,7 @@ def safely_persist_event(
         return {
             "ok": False,
             "mode": normalized_mode,
-            "diagnostic": f"{type(exc).__name__}",
+            "diagnostic": type(exc).__name__,
         }
     return {"ok": True, "mode": normalized_mode, "diagnostic": None}
 
@@ -281,6 +315,7 @@ def summarize_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     """Return compact product metrics for an analytics-review view."""
     answers = [event for event in events if event.get("event_type") == "answer_generated"]
     feedback = [event for event in events if event.get("event_type") == "feedback_submitted"]
+    answer_ids = {str(event.get("event_id")) for event in answers}
     helpful_count = sum(event.get("helpful") is True for event in feedback)
     unsupported_count = sum(
         event.get("intent") == "unsupported_question"
@@ -296,6 +331,9 @@ def summarize_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "answer_count": len(answers),
         "feedback_count": len(feedback),
+        "orphan_feedback_count": sum(
+            str(event.get("answer_event_id")) not in answer_ids for event in feedback
+        ),
         "helpful_count": helpful_count,
         "not_helpful_count": len(feedback) - helpful_count,
         "helpful_rate": rate(helpful_count, len(feedback)),
