@@ -33,6 +33,20 @@ def test_loader_parses_embedded_whitespace_in_signed_numbers():
     assert loaded.loc[0, "score_lost"] == 549_617_472
     assert loaded.loc[0, "net_score"] == -546_738_937
     assert loaded.loc[0, "competition_rank"] == 28
+    assert all(str(loaded[column].dtype) == "float64" for column in source.columns)
+
+
+def test_loader_keeps_float_dtype_when_every_value_is_present():
+    source = pd.DataFrame(
+        {
+            "net_score": ["100", "- 20", "0"],
+        }
+    )
+
+    loaded = coerce_numeric_columns(source, ["net_score"])
+
+    assert loaded["net_score"].tolist() == [100.0, -20.0, 0.0]
+    assert str(loaded["net_score"].dtype) == "float64"
 
 
 def test_loader_preserves_missing_and_invalid_value_behavior():
@@ -48,6 +62,8 @@ def test_loader_preserves_missing_and_invalid_value_behavior():
     assert loaded["score_gained"].isna().all()
     assert loaded["score_lost"].isna().iloc[:2].all()
     assert loaded.loc[2, "score_lost"] == 1_000
+    assert str(loaded["score_gained"].dtype) == "float64"
+    assert str(loaded["score_lost"].dtype) == "float64"
 
 
 def test_loader_does_not_mutate_source_dataframe():
@@ -66,10 +82,8 @@ def test_repository_csv_restores_w23_embedded_whitespace_scores():
     legacy = legacy_coerce_numeric_columns(raw, columns)
     fixed = coerce_numeric_columns(raw, columns)
 
-    # The fix may fill values that the legacy loader lost, but it must not
-    # change any value the legacy loader already parsed successfully. A column
-    # may move from float to integer dtype when its former NaNs are restored.
     for column in columns:
+        assert str(fixed[column].dtype) == "float64"
         legacy_parsed = legacy[column].notna()
         pd.testing.assert_series_equal(
             fixed.loc[legacy_parsed, column],
