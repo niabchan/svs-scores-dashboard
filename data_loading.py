@@ -19,12 +19,16 @@ def coerce_numeric_columns(
     data: pd.DataFrame,
     columns: Iterable[str] = DEFAULT_NUMERIC_COLUMNS,
 ) -> pd.DataFrame:
-    """Return a copy with selected columns safely coerced to numeric values.
+    """Return a copy with selected columns safely coerced to float values.
 
     Source CSV values may contain thousands separators and whitespace around or
     inside a signed number, for example ``- 546,738,937``. Whitespace has no
     numeric meaning in these score fields, so it is removed before coercion.
     Missing and genuinely invalid values continue to become ``NaN``.
+
+    The resulting columns intentionally use ``float64`` even when every value
+    is a whole number. This keeps the dataframe schema stable for Streamlit's
+    number-column rendering across periods with and without missing values.
     """
     if not isinstance(data, pd.DataFrame):
         raise TypeError("data must be a pandas DataFrame")
@@ -40,6 +44,9 @@ def coerce_numeric_columns(
             .str.replace(",", "", regex=False)
             .str.replace(r"\s+", "", regex=True)
         )
-        cleaned[column] = pd.to_numeric(normalized, errors="coerce")
+        cleaned[column] = pd.to_numeric(
+            normalized,
+            errors="coerce",
+        ).astype("float64")
 
     return cleaned
