@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
 import json
 
+import pytest
+
+import usage_analytics
 from usage_analytics import (
     MAX_ANSWER_CHARS,
     MAX_COMMENT_CHARS,
@@ -122,6 +125,11 @@ def test_feedback_event_links_answer_and_bounds_comment():
     assert event["comment"].endswith("…")
 
 
+def test_feedback_requires_a_persisted_answer_event_id():
+    with pytest.raises(ValueError, match="answer_event_id"):
+        build_feedback_event("", helpful=True)
+
+
 def test_local_jsonl_round_trip_and_malformed_count(tmp_path):
     path = tmp_path / "analytics" / "events.jsonl"
     answer = build_answer_event(
@@ -168,10 +176,56 @@ def test_safe_persistence_never_raises(tmp_path):
     )
     invalid_mode = safely_persist_event(answer, mode="unknown")
     missing_endpoint = safely_persist_event(answer, mode="webhook", endpoint=None)
+    insecure_endpoint = safely_persist_event(
+        answer,
+        mode="webhook",
+        endpoint="http://example.test/events",
+    )
 
     assert result == {"ok": True, "mode": "local", "diagnostic": None}
     assert invalid_mode["diagnostic"] == "invalid_mode"
     assert missing_endpoint["diagnostic"] == "missing_endpoint"
+    assert insecure_endpoint["diagnostic"] == "ValueError"
+
+
+def test_webhook_mode_posts_validated_json(monkeypatch):
+    answer = build_answer_event(
+        sample_answer(),
+        "Rendered answer",
+        question_kind="suggested",
+        suggested_question="Suggested",
+        ui_language="en",
+        event_id="answer-1",
+    )
+    captured = {}
+
+    class FakeResponse:
+        status = 204
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    def fake_urlopen(req, timeout):
+        captured["request"] = req
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(usage_analytics.request, "urlopen", fake_urlopen)
+
+    result = safely_persist_event(
+        answer,
+        mode="webhook",
+        endpoint="https://example.test/events",
+        bearer_token="secret-token",
+    )
+
+    assert result == {"ok": True, "mode": "webhook", "diagnostic": None}
+    assert captured["timeout"] == 4.0
+    assert json.loads(captured["request"].data)["event_id"] == "answer-1"
+    assert captured["request"].get_header("Authorization") == "Bearer secret-token"
 
 
 def test_summary_reports_product_metrics():
@@ -224,6 +278,7 @@ def test_summary_reports_product_metrics():
 
     assert summary["answer_count"] == 2
     assert summary["feedback_count"] == 2
+    assert summary["orphan_feedback_count"] == 0
     assert summary["helpful_rate"] == 50.0
     assert summary["unsupported_rate"] == 50.0
     assert summary["ai_attempt_count"] == 1
