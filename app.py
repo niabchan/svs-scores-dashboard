@@ -919,9 +919,12 @@ def ask_dashboard_dialog():
                 selected_player_count=len(current_selected_players),
                 total_player_count=total_players_in_scope,
             )
-            _persist_preview_analytics(answer_event)
-            st.session_state["ask_dashboard_last_answer_event_id"] = answer_event["event_id"]
-            st.session_state["ask_dashboard_feedback_submitted_for"] = None
+            analytics_result = _persist_preview_analytics(answer_event)
+            if analytics_result.get("ok"):
+                st.session_state["ask_dashboard_last_answer_event_id"] = answer_event["event_id"]
+                st.session_state["ask_dashboard_feedback_submitted_for"] = None
+            else:
+                st.session_state.pop("ask_dashboard_last_answer_event_id", None)
         except Exception as exc:
             st.session_state["ask_dashboard_analytics_last_result"] = {
                 "ok": False,
