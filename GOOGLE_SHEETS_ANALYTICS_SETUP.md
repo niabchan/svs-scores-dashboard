@@ -54,6 +54,8 @@ This stores the Spreadsheet ID in Script Properties and creates the four sheets.
 
 The Web App URL is public enough to receive requests, but every payload must also contain the shared secret. A wrong secret is rejected by the receiver response.
 
+**Pause here before changing Streamlit Secrets.** Keep both the Web App URL and shared secret private. Once the deployment is ready, continue with the preview configuration or confirm completion so the connection can be tested.
+
 ## 6. Configure Streamlit preview Secrets
 
 In the preview app settings, add:
