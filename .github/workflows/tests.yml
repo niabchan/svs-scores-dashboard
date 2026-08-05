@@ -7,8 +7,32 @@ on:
       - ask-dashboard-wip
       - work
 
+permissions:
+  contents: write
+
 jobs:
+  apply-roadmap-patch:
+    if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ask-dashboard-wip
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply one-time roadmap patch
+        run: python scripts/apply_roadmap_patch.py
+      - name: Commit roadmap changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add alliance overview and secure cloud analytics contract"
+          git push
+
   test:
+    if: github.event_name == 'pull_request' || github.actor == 'github-actions[bot]' || github.ref_name == 'work'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
