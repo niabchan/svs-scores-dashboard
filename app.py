@@ -7,6 +7,8 @@ import plotly.express as px
 import unicodedata
 import re
 
+from data_loading import coerce_numeric_columns
+
 # Clean player names for display while preserving letters from all languages.
 def clean_player_name(name):
     if pd.isna(name):
@@ -535,16 +537,9 @@ def load_data(file_path):
     # Make sure score columns are numeric
     score_columns = ["score_gained", "score_lost", "net_score", "competition_rank"]
 
-    for col in score_columns:
-        df[col] = (
-            df[col]
-            .astype(str)
-            .str.replace(",", "", regex=False)
-            .str.strip()
-        )
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    return df
+    # Remove separators and all whitespace inside numeric fields before
+    # coercion. This preserves signed values such as "- 546,738,937".
+    return coerce_numeric_columns(df, score_columns)
 
 df = load_data("svs_scores_utf8.csv")
 
