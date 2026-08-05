@@ -61,7 +61,9 @@ For persistence that survives Streamlit restarts, configure an HTTPS endpoint th
 ```toml
 ASK_DASHBOARD_ANALYTICS_MODE = "webhook"
 ASK_DASHBOARD_ANALYTICS_ENDPOINT = "https://example.com/analytics/events"
-ASK_DASHBOARD_ANALYTICS_TOKEN = "optional-bearer-token"
+ASK_DASHBOARD_ANALYTICS_SHARED_SECRET = "shared-secret"
+ASK_DASHBOARD_APP_VERSION = "preview-pr13"
+ASK_DASHBOARD_ANALYTICS_TOKEN = "optional-bearer-token-for-non-Apps-Script-backends"
 ```
 
 The endpoint receives one append-only event at a time. Answer and feedback records are linked through `answer_event_id`; the app does not require update or delete operations.
@@ -75,3 +77,8 @@ ASK_DASHBOARD_ANALYTICS_MODE = "off"
 ```
 
 The existing in-session developer log remains separate and is not durable.
+
+
+## Google Sheets receiver
+
+For durable cloud storage with RawEvents, AnswerFeedbackView, Summary, and OptInTextReview sheets, follow `GOOGLE_SHEETS_ANALYTICS_SETUP.md`.

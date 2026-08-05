@@ -51,6 +51,7 @@ SUPPORTED_INTENT_DEFINITIONS = {
     "top_contributors": "Identify top contributing players overall or within named alliances.",
     "alliance_exclusion_total_net": "Calculate total net score after excluding one or more named alliances.",
     "net_score_leader_summary": "Summarize which alliance leads total net score.",
+    "alliance_score_overview": "Answer a broad alliance-score leader question by summarizing multiple score metrics without silently assuming one metric.",
     "player_net_score_leader": "Identify the player with the highest net score overall or within named alliances.",
     "dashboard_help": "Explain how to use Ask Dashboard and which questions it supports.",
     "dashboard_limitation": "Explain that player behavior and intent cannot be inferred from score data.",
@@ -179,7 +180,8 @@ def _request_payload(question, known_alliance_names):
         "Classify requests for usage guidance as dashboard_help. Classify requests to infer "
         "player behavior, intention, motive, character, skill, strategy, responsibility, or "
         "unseen gameplay context from scores as dashboard_limitation. Never infer those "
-        "qualities from score data. "
+        "qualities from score data. Classify broad questions such as top alliance score, "
+        "where no specific metric is named, as alliance_score_overview. "
         "Never invent alliance names outside the supplied known_alliance_names list. "
         "Use unsupported_question when no supported intent applies. Use needs_clarification "
         "only for alliance_exclusion_total_net with a missing alliance name. Do not answer "

@@ -695,6 +695,8 @@ def _analytics_config():
         ),
         "endpoint": _secret_or_env("ASK_DASHBOARD_ANALYTICS_ENDPOINT"),
         "bearer_token": _secret_or_env("ASK_DASHBOARD_ANALYTICS_TOKEN"),
+        "shared_secret": _secret_or_env("ASK_DASHBOARD_ANALYTICS_SHARED_SECRET"),
+        "app_version": str(_secret_or_env("ASK_DASHBOARD_APP_VERSION") or "preview-unknown"),
     }
 
 
@@ -706,6 +708,7 @@ def _persist_preview_analytics(event):
         local_path=config["local_path"],
         endpoint=config["endpoint"],
         bearer_token=config["bearer_token"],
+        shared_secret=config["shared_secret"],
     )
     st.session_state["ask_dashboard_analytics_last_result"] = result
     return result
@@ -918,6 +921,7 @@ def ask_dashboard_dialog():
                 selected_net_status_count=len(selected_net_status),
                 selected_player_count=len(current_selected_players),
                 total_player_count=total_players_in_scope,
+                app_version=analytics_config["app_version"],
             )
             analytics_result = _persist_preview_analytics(answer_event)
             if analytics_result.get("ok"):
@@ -994,6 +998,7 @@ def ask_dashboard_dialog():
                             helpful=feedback_choice == "Helpful",
                             reason=feedback_reason,
                             comment=feedback_comment.strip() or None,
+                            app_version=analytics_config["app_version"],
                         )
                         result = _persist_preview_analytics(feedback_event)
                         if result.get("ok"):

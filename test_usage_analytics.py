@@ -79,8 +79,10 @@ def test_answer_event_includes_and_bounds_opted_in_custom_text():
         ui_language="vi",
         include_full_text=True,
         event_id="answer-2",
+        app_version="preview-pr13",
     )
 
+    assert event["app_version"] == "preview-pr13"
     assert event["full_text_consent"] is True
     assert len(event["question_text"]) == MAX_QUESTION_CHARS
     assert event["question_text"].endswith("…")
@@ -115,8 +117,10 @@ def test_feedback_event_links_answer_and_bounds_comment():
         comment="C" * (MAX_COMMENT_CHARS + 10),
         timestamp_utc=datetime(2026, 8, 5, 3, 5, tzinfo=timezone.utc),
         event_id="feedback-1",
+        app_version="preview-pr13",
     )
 
+    assert event["app_version"] == "preview-pr13"
     assert event["event_type"] == "feedback_submitted"
     assert event["answer_event_id"] == "answer-1"
     assert event["helpful"] is False
@@ -176,15 +180,22 @@ def test_safe_persistence_never_raises(tmp_path):
     )
     invalid_mode = safely_persist_event(answer, mode="unknown")
     missing_endpoint = safely_persist_event(answer, mode="webhook", endpoint=None)
+    missing_secret = safely_persist_event(
+        answer,
+        mode="webhook",
+        endpoint="https://example.test/events",
+    )
     insecure_endpoint = safely_persist_event(
         answer,
         mode="webhook",
         endpoint="http://example.test/events",
+        shared_secret="shared-secret",
     )
 
     assert result == {"ok": True, "mode": "local", "diagnostic": None}
     assert invalid_mode["diagnostic"] == "invalid_mode"
     assert missing_endpoint["diagnostic"] == "missing_endpoint"
+    assert missing_secret["diagnostic"] == "missing_shared_secret"
     assert insecure_endpoint["diagnostic"] == "ValueError"
 
 
@@ -200,7 +211,10 @@ def test_webhook_mode_posts_validated_json(monkeypatch):
     captured = {}
 
     class FakeResponse:
-        status = 204
+        status = 200
+
+        def read(self):
+            return b'{"ok": true}'
 
         def __enter__(self):
             return self
@@ -220,11 +234,14 @@ def test_webhook_mode_posts_validated_json(monkeypatch):
         mode="webhook",
         endpoint="https://example.test/events",
         bearer_token="secret-token",
+        shared_secret="shared-secret",
     )
 
     assert result == {"ok": True, "mode": "webhook", "diagnostic": None}
     assert captured["timeout"] == 4.0
-    assert json.loads(captured["request"].data)["event_id"] == "answer-1"
+    envelope = json.loads(captured["request"].data)
+    assert envelope["secret"] == "shared-secret"
+    assert envelope["event"]["event_id"] == "answer-1"
     assert captured["request"].get_header("Authorization") == "Bearer secret-token"
 
 

@@ -121,6 +121,7 @@ def build_answer_event(
     selected_player_count: int = 0,
     total_player_count: int = 0,
     app_variant: str = "preview",
+    app_version: str = "unknown",
     timestamp_utc: Any = None,
     event_id: str | None = None,
 ) -> dict[str, Any]:
@@ -146,6 +147,7 @@ def build_answer_event(
         "event_id": event_id or str(uuid4()),
         "timestamp_utc": _utc_timestamp(timestamp_utc),
         "app_variant": str(app_variant),
+        "app_version": str(app_version or "unknown"),
         "ui_language": str(ui_language or "en"),
         "question_kind": question_kind,
         "suggested_question": (
@@ -185,6 +187,7 @@ def build_feedback_event(
     reason: str | None = None,
     comment: str | None = None,
     app_variant: str = "preview",
+    app_version: str = "unknown",
     timestamp_utc: Any = None,
     event_id: str | None = None,
 ) -> dict[str, Any]:
@@ -202,6 +205,7 @@ def build_feedback_event(
         "answer_event_id": answer_event_id,
         "timestamp_utc": _utc_timestamp(timestamp_utc),
         "app_variant": str(app_variant),
+        "app_version": str(app_version or "unknown"),
         "helpful": helpful,
         "reason": reason,
         "comment": _bounded_text(comment, MAX_COMMENT_CHARS),
@@ -237,21 +241,35 @@ def post_webhook_event(
     event: dict[str, Any],
     *,
     bearer_token: str | None = None,
+    shared_secret: str | None = None,
     timeout_seconds: float = 4.0,
 ) -> None:
     """POST one event to a configured HTTPS JSON endpoint."""
     if not isinstance(endpoint, str) or not endpoint.startswith("https://"):
         raise ValueError("analytics webhook endpoint must use https://")
     normalized = _validate_event(event)
+    if not shared_secret:
+        raise ValueError("analytics webhook shared secret is required")
     headers = {"Content-Type": "application/json; charset=utf-8"}
     if bearer_token:
         headers["Authorization"] = f"Bearer {bearer_token}"
-    payload = json.dumps(normalized, ensure_ascii=False).encode("utf-8")
+    payload = json.dumps(
+        {"secret": str(shared_secret), "event": normalized},
+        ensure_ascii=False,
+    ).encode("utf-8")
     req = request.Request(endpoint, data=payload, headers=headers, method="POST")
     with request.urlopen(req, timeout=timeout_seconds) as response:
         status = getattr(response, "status", 200)
         if status < 200 or status >= 300:
             raise RuntimeError(f"analytics webhook returned HTTP {status}")
+        body = getattr(response, "read", lambda: b"")()
+        if body:
+            try:
+                response_payload = json.loads(body.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise RuntimeError("analytics webhook returned invalid JSON") from exc
+            if isinstance(response_payload, dict) and response_payload.get("ok") is False:
+                raise RuntimeError("analytics webhook rejected the event")
 
 
 def safely_persist_event(
@@ -261,6 +279,7 @@ def safely_persist_event(
     local_path: str = DEFAULT_LOCAL_PATH,
     endpoint: str | None = None,
     bearer_token: str | None = None,
+    shared_secret: str | None = None,
     timeout_seconds: float = 4.0,
 ) -> dict[str, Any]:
     """Persist an event without allowing analytics failures to break the app."""
@@ -275,10 +294,13 @@ def safely_persist_event(
         elif normalized_mode == "webhook":
             if not endpoint:
                 return {"ok": False, "mode": "webhook", "diagnostic": "missing_endpoint"}
+            if not shared_secret:
+                return {"ok": False, "mode": "webhook", "diagnostic": "missing_shared_secret"}
             post_webhook_event(
                 endpoint,
                 event,
                 bearer_token=bearer_token,
+                shared_secret=shared_secret,
                 timeout_seconds=timeout_seconds,
             )
     except Exception as exc:
