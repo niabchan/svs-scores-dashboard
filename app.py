@@ -1005,9 +1005,9 @@ def ask_dashboard_dialog():
                             st.session_state["ask_dashboard_feedback_submitted_for"] = last_answer_event_id
                             st.rerun()
                         else:
-                            st.warning("Feedback could not be saved on this preview instance.")
+                            st.warning("Feedback delivery could not be confirmed. You can retry safely; retries for the same answer will not create another feedback record.")
                     except Exception:
-                        st.warning("Feedback could not be saved on this preview instance.")
+                        st.warning("Feedback delivery could not be confirmed. You can retry safely; retries for the same answer will not create another feedback record.")
 
     if _truthy_setting("ASK_DASHBOARD_DEBUG_LOG"):
         records = st.session_state.get("ask_dashboard_question_log", [])

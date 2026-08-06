@@ -87,16 +87,23 @@ function doPost(e) {
 
     const event = validateEvent_(envelope.event);
     const lock = LockService.getScriptLock();
+    let appended = false;
     lock.waitLock(10000);
     try {
       const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
-      appendRawEvent_(spreadsheet, event);
-      rebuildDerivedSheets_(spreadsheet);
+      appended = appendRawEvent_(spreadsheet, event);
+      if (appended) {
+        rebuildDerivedSheets_(spreadsheet);
+      }
     } finally {
       lock.releaseLock();
     }
 
-    return jsonResponse_({ ok: true, event_id: event.event_id });
+    return jsonResponse_({
+      ok: true,
+      event_id: event.event_id,
+      duplicate: !appended,
+    });
   } catch (error) {
     console.error(error);
     return jsonResponse_({ ok: false, error: "receiver_error" });
@@ -161,6 +168,10 @@ function appendRawEvent_(spreadsheet, event) {
   const sheet = getOrCreateSheet_(spreadsheet, RAW_SHEET_NAME);
   ensureHeaders_(sheet, RAW_HEADERS);
 
+  if (rawEventIdExists_(sheet, event.event_id)) {
+    return false;
+  }
+
   const rowObject = Object.assign(
     { received_at_utc: new Date().toISOString() },
     event,
@@ -168,6 +179,18 @@ function appendRawEvent_(spreadsheet, event) {
   );
   const row = RAW_HEADERS.map((header) => safeCellValue_(rowObject[header]));
   sheet.appendRow(row);
+  return true;
+}
+
+function rawEventIdExists_(sheet, eventId) {
+  if (sheet.getLastRow() < 2) {
+    return false;
+  }
+  const eventIdColumn = RAW_HEADERS.indexOf("event_id") + 1;
+  const values = sheet
+    .getRange(2, eventIdColumn, sheet.getLastRow() - 1, 1)
+    .getDisplayValues();
+  return values.some((row) => String(row[0]) === String(eventId));
 }
 
 function rebuildDerivedSheets_(spreadsheet) {
@@ -249,7 +272,12 @@ function readRawEvents_(spreadsheet) {
 }
 
 function writeSummary_(spreadsheet, answers, feedback, feedbackByAnswer) {
-  const helpfulCount = feedback.filter((event) => event.helpful === true).length;
+  const effectiveFeedback = Object.keys(feedbackByAnswer).map(
+    (answerEventId) => feedbackByAnswer[answerEventId]
+  );
+  const helpfulCount = effectiveFeedback.filter(
+    (event) => event.helpful === true
+  ).length;
   const unsupportedCount = answers.filter(
     (event) =>
       event.intent === "unsupported_question" || event.match_status === "unsupported"
@@ -263,9 +291,11 @@ function writeSummary_(spreadsheet, answers, feedback, feedbackByAnswer) {
   const rows = [
     ["Metric", "Value"],
     ["Answers", answers.length],
-    ["Feedback", feedback.length],
+    ["Feedback", effectiveFeedback.length],
+    ["Raw feedback events", feedback.length],
+    ["Duplicate/retry feedback events", Math.max(0, feedback.length - effectiveFeedback.length)],
     ["Feedback coverage", percent_(Object.keys(feedbackByAnswer).length, answers.length)],
-    ["Helpful rate", percent_(helpfulCount, feedback.length)],
+    ["Helpful rate", percent_(helpfulCount, effectiveFeedback.length)],
     ["Unsupported rate", percent_(unsupportedCount, answers.length)],
     ["AI attempt count", aiAttemptCount],
     ["AI success rate", percent_(aiSuccessCount, aiAttemptCount)],
@@ -282,7 +312,7 @@ function writeSummary_(spreadsheet, answers, feedback, feedbackByAnswer) {
     ...counterRows_(answers, "app_version"),
     [],
     ["Feedback reason", "Count"],
-    ...counterRows_(feedback, "reason"),
+    ...counterRows_(effectiveFeedback, "reason"),
   ];
 
   const sheet = getOrCreateSheet_(spreadsheet, SUMMARY_SHEET_NAME);
