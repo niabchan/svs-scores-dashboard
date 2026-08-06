@@ -663,6 +663,7 @@ from ask_dashboard import (
 )
 from usage_analytics import (
     DEFAULT_LOCAL_PATH,
+    admin_password_matches,
     build_answer_event,
     build_feedback_event,
     load_local_events,
@@ -907,6 +908,9 @@ def ask_dashboard_dialog():
             st.session_state.pop("ask_dashboard_logging_error", None)
 
         rendered_answer = render_dashboard_answer(answer)
+        st.session_state.pop("ask_dashboard_pending_answer_event", None)
+        st.session_state.pop("ask_dashboard_last_answer_event_id", None)
+        answer_event = None
         try:
             answer_event = build_answer_event(
                 answer,
@@ -923,19 +927,23 @@ def ask_dashboard_dialog():
                 total_player_count=total_players_in_scope,
                 app_version=analytics_config["app_version"],
             )
+            # Keep the exact event until delivery is confirmed. The receiver is
+            # idempotent by event_id, so retrying this object is safe even if the
+            # first response was lost after the row was appended.
+            st.session_state["ask_dashboard_pending_answer_event"] = answer_event
             analytics_result = _persist_preview_analytics(answer_event)
             if analytics_result.get("ok"):
                 st.session_state["ask_dashboard_last_answer_event_id"] = answer_event["event_id"]
                 st.session_state["ask_dashboard_feedback_submitted_for"] = None
-            else:
-                st.session_state.pop("ask_dashboard_last_answer_event_id", None)
+                st.session_state.pop("ask_dashboard_pending_answer_event", None)
         except Exception as exc:
             st.session_state["ask_dashboard_analytics_last_result"] = {
                 "ok": False,
                 "mode": _analytics_config()["mode"],
                 "diagnostic": f"{type(exc).__name__}",
             }
-            st.session_state.pop("ask_dashboard_last_answer_event_id", None)
+            if answer_event is None:
+                st.session_state.pop("ask_dashboard_pending_answer_event", None)
 
         st.session_state["ask_dashboard_last_question"] = question
         st.session_state["ask_dashboard_last_rendered_answer"] = rendered_answer
@@ -943,9 +951,31 @@ def ask_dashboard_dialog():
     last_question = st.session_state.get("ask_dashboard_last_question")
     last_rendered_answer = st.session_state.get("ask_dashboard_last_rendered_answer")
     last_answer_event_id = st.session_state.get("ask_dashboard_last_answer_event_id")
+    pending_answer_event = st.session_state.get("ask_dashboard_pending_answer_event")
     if last_rendered_answer and last_question == question:
         st.markdown("### Explanation")
         st.markdown(last_rendered_answer)
+
+        if not last_answer_event_id and isinstance(pending_answer_event, dict):
+            st.info(
+                "Feedback is temporarily unavailable because analytics delivery "
+                "for this answer has not been confirmed."
+            )
+            if st.button(
+                "Retry analytics connection",
+                key=f"ask_dashboard_retry_answer_{pending_answer_event.get('event_id', 'pending')}",
+            ):
+                retry_result = _persist_preview_analytics(pending_answer_event)
+                if retry_result.get("ok"):
+                    st.session_state["ask_dashboard_last_answer_event_id"] = pending_answer_event["event_id"]
+                    st.session_state["ask_dashboard_feedback_submitted_for"] = None
+                    st.session_state.pop("ask_dashboard_pending_answer_event", None)
+                    st.rerun()
+                else:
+                    st.warning(
+                        "Analytics delivery still could not be confirmed. The answer "
+                        "remains available, and retrying the same event is safe."
+                    )
 
         if last_answer_event_id:
             if st.session_state.get("ask_dashboard_feedback_submitted_for") == last_answer_event_id:
@@ -1005,51 +1035,67 @@ def ask_dashboard_dialog():
                             st.session_state["ask_dashboard_feedback_submitted_for"] = last_answer_event_id
                             st.rerun()
                         else:
-                            st.warning("Feedback could not be saved on this preview instance.")
+                            st.warning("Feedback delivery could not be confirmed. You can retry safely; retries for the same answer will not create another feedback record.")
                     except Exception:
-                        st.warning("Feedback could not be saved on this preview instance.")
+                        st.warning("Feedback delivery could not be confirmed. You can retry safely; retries for the same answer will not create another feedback record.")
 
     if _truthy_setting("ASK_DASHBOARD_DEBUG_LOG"):
-        records = st.session_state.get("ask_dashboard_question_log", [])
         with st.expander("Developer: Question analysis log", expanded=False):
-            st.caption(f"{len(records)} record(s) in the current Streamlit session.")
-            logging_error = st.session_state.get("ask_dashboard_logging_error")
-            if logging_error:
-                st.caption(f"Last logging diagnostic: {logging_error}")
-            last_routing = st.session_state.get("ask_dashboard_last_routing", {})
-            if records:
-                last_record = records[-1]
-                st.caption(f"Routing source: {last_routing.get('source') or last_record.get('source', 'rule')}")
-            if last_routing:
-                st.caption(f"AI attempted: {'yes' if last_routing.get('ai_attempted') else 'no'}")
-            ai_diagnostic = st.session_state.get("ask_dashboard_ai_diagnostic")
-            if ai_diagnostic:
-                st.caption(f"AI diagnostic: {ai_diagnostic}")
-            if records:
-                st.dataframe(records, use_container_width=True)
-                st.download_button(
-                    "Download session log JSON",
-                    data=json.dumps(records, indent=2),
-                    file_name="ask_dashboard_question_log.json",
-                    mime="application/json",
-                )
-
-            analytics_config = _analytics_config()
-            analytics_result = st.session_state.get("ask_dashboard_analytics_last_result")
-            if analytics_result:
+            admin_password = _secret_or_env("ASK_DASHBOARD_ANALYTICS_ADMIN_PASSWORD")
+            if not admin_password:
                 st.caption(
-                    f"Persistent analytics mode: {analytics_result.get('mode')} | "
-                    f"last write: {'ok' if analytics_result.get('ok') else analytics_result.get('diagnostic')}"
+                    "Developer tools are disabled because no analytics admin password is configured."
                 )
-            if analytics_config["mode"] == "local":
-                admin_password = _secret_or_env("ASK_DASHBOARD_ANALYTICS_ADMIN_PASSWORD")
-                if admin_password:
-                    entered_password = st.text_input(
-                        "Analytics admin password",
-                        type="password",
-                        key="ask_dashboard_analytics_admin_password_input",
+            else:
+                entered_password = st.text_input(
+                    "Analytics admin password",
+                    type="password",
+                    key="ask_dashboard_analytics_admin_password_input",
+                )
+                if not admin_password_matches(entered_password, admin_password):
+                    st.caption(
+                        "Enter the analytics admin password to view, download, or clear developer logs."
                     )
-                    if entered_password == str(admin_password):
+                    if entered_password:
+                        st.error("Incorrect analytics admin password.")
+                else:
+                    records = st.session_state.get("ask_dashboard_question_log", [])
+                    st.caption(f"{len(records)} record(s) in the current Streamlit session.")
+                    logging_error = st.session_state.get("ask_dashboard_logging_error")
+                    if logging_error:
+                        st.caption(f"Last logging diagnostic: {logging_error}")
+                    last_routing = st.session_state.get("ask_dashboard_last_routing", {})
+                    if records:
+                        last_record = records[-1]
+                        st.caption(
+                            f"Routing source: {last_routing.get('source') or last_record.get('source', 'rule')}"
+                        )
+                    if last_routing:
+                        st.caption(
+                            f"AI attempted: {'yes' if last_routing.get('ai_attempted') else 'no'}"
+                        )
+                    ai_diagnostic = st.session_state.get("ask_dashboard_ai_diagnostic")
+                    if ai_diagnostic:
+                        st.caption(f"AI diagnostic: {ai_diagnostic}")
+                    if records:
+                        st.dataframe(records, use_container_width=True)
+                        st.download_button(
+                            "Download session log JSON",
+                            data=json.dumps(records, indent=2),
+                            file_name="ask_dashboard_question_log.json",
+                            mime="application/json",
+                        )
+
+                    analytics_config = _analytics_config()
+                    analytics_result = st.session_state.get(
+                        "ask_dashboard_analytics_last_result"
+                    )
+                    if analytics_result:
+                        st.caption(
+                            f"Persistent analytics mode: {analytics_result.get('mode')} | "
+                            f"last write: {'ok' if analytics_result.get('ok') else analytics_result.get('diagnostic')}"
+                        )
+                    if analytics_config["mode"] == "local":
                         persistent_events, malformed_count = load_local_events(
                             analytics_config["local_path"]
                         )
@@ -1068,28 +1114,31 @@ def ask_dashboard_dialog():
                             "—" if unsupported_rate is None else f"{unsupported_rate:.1f}%",
                         )
                         if malformed_count:
-                            st.caption(f"Skipped malformed analytics records: {malformed_count}")
+                            st.caption(
+                                f"Skipped malformed analytics records: {malformed_count}"
+                            )
                         st.json(summary)
                         if persistent_events:
                             st.dataframe(persistent_events, use_container_width=True)
                             st.download_button(
                                 "Download persistent analytics JSON",
-                                data=json.dumps(persistent_events, ensure_ascii=False, indent=2),
+                                data=json.dumps(
+                                    persistent_events,
+                                    ensure_ascii=False,
+                                    indent=2,
+                                ),
                                 file_name="ask_dashboard_persistent_analytics.json",
                                 mime="application/json",
                             )
-                else:
-                    st.caption(
-                        "Set ASK_DASHBOARD_ANALYTICS_ADMIN_PASSWORD to enable local analytics review."
-                    )
-            elif analytics_config["mode"] == "webhook":
-                st.caption(
-                    "Webhook events are reviewed in the configured analytics backend."
-                )
+                    elif analytics_config["mode"] == "webhook":
+                        st.caption(
+                            "Webhook events are reviewed in the configured analytics backend."
+                        )
 
-            if st.button("Clear question analysis log"):
-                st.session_state["ask_dashboard_question_log"] = []
-                st.rerun()
+                    if st.button("Clear question analysis log"):
+                        st.session_state["ask_dashboard_question_log"] = []
+                        st.rerun()
+
 
 
 if st.button("💬 Ask the Dashboard", type="primary"):

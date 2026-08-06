@@ -8,13 +8,23 @@ from usage_analytics import (
     MAX_ANSWER_CHARS,
     MAX_COMMENT_CHARS,
     MAX_QUESTION_CHARS,
+    admin_password_matches,
     append_local_event,
     build_answer_event,
     build_feedback_event,
+    feedback_event_id_for_answer,
     load_local_events,
     safely_persist_event,
     summarize_events,
 )
+
+
+def test_admin_password_gate_requires_configured_exact_match():
+    assert admin_password_matches("correct", "correct") is True
+    assert admin_password_matches("wrong", "correct") is False
+    assert admin_password_matches("", "correct") is False
+    assert admin_password_matches("anything", "") is False
+    assert admin_password_matches("anything", None) is False
 
 
 def sample_answer(question="Why did the negative percentage increase?"):
@@ -134,6 +144,23 @@ def test_feedback_requires_a_persisted_answer_event_id():
         build_feedback_event("", helpful=True)
 
 
+def test_feedback_retry_uses_a_stable_event_id():
+    first = build_feedback_event(
+        "answer-1",
+        helpful=True,
+        reason="correct_and_clear",
+    )
+    retry = build_feedback_event(
+        "answer-1",
+        helpful=True,
+        reason="correct_and_clear",
+    )
+
+    assert first["event_id"] == retry["event_id"]
+    assert first["event_id"] == feedback_event_id_for_answer("answer-1")
+    assert first["event_id"] != feedback_event_id_for_answer("answer-2")
+
+
 def test_local_jsonl_round_trip_and_malformed_count(tmp_path):
     path = tmp_path / "analytics" / "events.jsonl"
     answer = build_answer_event(
@@ -238,7 +265,7 @@ def test_webhook_mode_posts_validated_json(monkeypatch):
     )
 
     assert result == {"ok": True, "mode": "webhook", "diagnostic": None}
-    assert captured["timeout"] == 4.0
+    assert captured["timeout"] == 10.0
     envelope = json.loads(captured["request"].data)
     assert envelope["secret"] == "shared-secret"
     assert envelope["event"]["event_id"] == "answer-1"
@@ -288,6 +315,17 @@ def test_summary_reports_product_metrics():
             helpful=False,
             reason="unsupported_question",
             event_id="feedback-2",
+            timestamp_utc="2026-08-05T03:05:00Z",
+        ),
+        # Simulate a retry that reached the backend after the client reported
+        # a transient failure. Product metrics keep only the latest feedback
+        # for the answer instead of counting both deliveries.
+        build_feedback_event(
+            "answer-2",
+            helpful=False,
+            reason="unsupported_question",
+            event_id="feedback-2-retry",
+            timestamp_utc="2026-08-05T03:06:00Z",
         ),
     ]
 
@@ -295,6 +333,8 @@ def test_summary_reports_product_metrics():
 
     assert summary["answer_count"] == 2
     assert summary["feedback_count"] == 2
+    assert summary["raw_feedback_event_count"] == 3
+    assert summary["duplicate_retry_feedback_count"] == 1
     assert summary["orphan_feedback_count"] == 0
     assert summary["helpful_rate"] == 50.0
     assert summary["unsupported_rate"] == 50.0
