@@ -15,7 +15,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 from urllib import request
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 ANALYTICS_SCHEMA_VERSION = 1
 ANALYTICS_EVENT_TYPES = {"answer_generated", "feedback_submitted"}
@@ -56,6 +56,18 @@ def _bounded_text(value: Any, limit: int) -> str | None:
     if len(text) <= limit:
         return text
     return text[: limit - 1] + "…"
+
+
+def feedback_event_id_for_answer(answer_event_id: str) -> str:
+    """Return a stable feedback event ID so delivery retries are idempotent."""
+    if not isinstance(answer_event_id, str) or not answer_event_id.strip():
+        raise ValueError("answer_event_id is required")
+    return str(
+        uuid5(
+            NAMESPACE_URL,
+            f"svs-scores-dashboard-feedback:{answer_event_id.strip()}",
+        )
+    )
 
 
 def _json_value(value: Any) -> Any:
@@ -201,7 +213,7 @@ def build_feedback_event(
     event = {
         "schema_version": ANALYTICS_SCHEMA_VERSION,
         "event_type": "feedback_submitted",
-        "event_id": event_id or str(uuid4()),
+        "event_id": event_id or feedback_event_id_for_answer(answer_event_id),
         "answer_event_id": answer_event_id,
         "timestamp_utc": _utc_timestamp(timestamp_utc),
         "app_variant": str(app_variant),
@@ -242,7 +254,7 @@ def post_webhook_event(
     *,
     bearer_token: str | None = None,
     shared_secret: str | None = None,
-    timeout_seconds: float = 4.0,
+    timeout_seconds: float = 10.0,
 ) -> None:
     """POST one event to a configured HTTPS JSON endpoint."""
     if not isinstance(endpoint, str) or not endpoint.startswith("https://"):
@@ -280,7 +292,7 @@ def safely_persist_event(
     endpoint: str | None = None,
     bearer_token: str | None = None,
     shared_secret: str | None = None,
-    timeout_seconds: float = 4.0,
+    timeout_seconds: float = 10.0,
 ) -> dict[str, Any]:
     """Persist an event without allowing analytics failures to break the app."""
     normalized_mode = str(mode or "off").strip().lower()
@@ -338,7 +350,19 @@ def summarize_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     answers = [event for event in events if event.get("event_type") == "answer_generated"]
     feedback = [event for event in events if event.get("event_type") == "feedback_submitted"]
     answer_ids = {str(event.get("event_id")) for event in answers}
-    helpful_count = sum(event.get("helpful") is True for event in feedback)
+
+    # Delivery is at-least-once. Keep the latest feedback per answer for product
+    # metrics so a retry cannot inflate feedback or helpfulness counts.
+    feedback_by_answer: dict[str, dict[str, Any]] = {}
+    for event in feedback:
+        answer_event_id = str(event.get("answer_event_id") or "")
+        previous = feedback_by_answer.get(answer_event_id)
+        if previous is None or str(previous.get("timestamp_utc") or "") <= str(
+            event.get("timestamp_utc") or ""
+        ):
+            feedback_by_answer[answer_event_id] = event
+    effective_feedback = list(feedback_by_answer.values())
+    helpful_count = sum(event.get("helpful") is True for event in effective_feedback)
     unsupported_count = sum(
         event.get("intent") == "unsupported_question"
         or event.get("match_status") == "unsupported"
@@ -352,13 +376,15 @@ def summarize_events(events: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "answer_count": len(answers),
-        "feedback_count": len(feedback),
+        "feedback_count": len(effective_feedback),
+        "raw_feedback_event_count": len(feedback),
+        "duplicate_retry_feedback_count": len(feedback) - len(effective_feedback),
         "orphan_feedback_count": sum(
-            str(event.get("answer_event_id")) not in answer_ids for event in feedback
+            str(event.get("answer_event_id")) not in answer_ids for event in effective_feedback
         ),
         "helpful_count": helpful_count,
-        "not_helpful_count": len(feedback) - helpful_count,
-        "helpful_rate": rate(helpful_count, len(feedback)),
+        "not_helpful_count": len(effective_feedback) - helpful_count,
+        "helpful_rate": rate(helpful_count, len(effective_feedback)),
         "unsupported_count": unsupported_count,
         "unsupported_rate": rate(unsupported_count, len(answers)),
         "ai_attempt_count": ai_attempt_count,
@@ -371,6 +397,10 @@ def summarize_events(events: list[dict[str, Any]]) -> dict[str, Any]:
             Counter(str(event.get("guidance_code")) for event in answers if event.get("guidance_code"))
         ),
         "feedback_reasons": dict(
-            Counter(str(event.get("reason")) for event in feedback if event.get("reason"))
+            Counter(
+                str(event.get("reason"))
+                for event in effective_feedback
+                if event.get("reason")
+            )
         ),
     }
