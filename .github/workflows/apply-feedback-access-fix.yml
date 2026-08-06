@@ -1,0 +1,30 @@
+name: Apply feedback access fix
+
+on:
+  push:
+    branches:
+      - ask-dashboard-wip
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ask-dashboard-wip
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply feedback access fix
+        run: python scripts/apply_feedback_access_fix.py
+      - name: Commit feedback access changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.py usage_analytics.py test_usage_analytics.py scripts/apply_feedback_access_fix.py
+          git commit -m "Protect developer logs and preserve feedback retry"
+          git push
