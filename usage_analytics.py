@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime, timezone
+from hmac import compare_digest
 import json
 import os
 from pathlib import Path
@@ -56,6 +57,16 @@ def _bounded_text(value: Any, limit: int) -> str | None:
     if len(text) <= limit:
         return text
     return text[: limit - 1] + "…"
+
+
+def admin_password_matches(entered_password: Any, expected_password: Any) -> bool:
+    """Return True only for a configured, exact developer password match."""
+    if expected_password is None or str(expected_password) == "":
+        return False
+    return compare_digest(
+        str(entered_password or ""),
+        str(expected_password),
+    )
 
 
 def feedback_event_id_for_answer(answer_event_id: str) -> str:

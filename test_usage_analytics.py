@@ -8,6 +8,7 @@ from usage_analytics import (
     MAX_ANSWER_CHARS,
     MAX_COMMENT_CHARS,
     MAX_QUESTION_CHARS,
+    admin_password_matches,
     append_local_event,
     build_answer_event,
     build_feedback_event,
@@ -16,6 +17,14 @@ from usage_analytics import (
     safely_persist_event,
     summarize_events,
 )
+
+
+def test_admin_password_gate_requires_configured_exact_match():
+    assert admin_password_matches("correct", "correct") is True
+    assert admin_password_matches("wrong", "correct") is False
+    assert admin_password_matches("", "correct") is False
+    assert admin_password_matches("anything", "") is False
+    assert admin_password_matches("anything", None) is False
 
 
 def sample_answer(question="Why did the negative percentage increase?"):
