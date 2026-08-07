@@ -119,7 +119,15 @@ def route_dashboard_question(question, known_alliance_names=None):
         params = {} if scope == "current_filters" else {"scope": scope}
         return legacy._intent_contract(ALLIANCE_POSITIVE_CONTRIBUTION_INTENT, params)
     if _is_player_leader_request(normalized):
-        params: dict[str, Any] = {"alliance_names": mentioned, "mode": "leader"}
+        # Preserve the historical named-alliance list response for questions
+        # such as "Who contributed most in SnS?" Existing users may rely on
+        # seeing several contributors from that alliance. An unqualified
+        # singular question asks for one player leader across the active scope.
+        if mentioned:
+            return legacy._intent_contract(
+                "top_contributors", {"alliance_names": mentioned}
+            )
+        params: dict[str, Any] = {"alliance_names": [], "mode": "leader"}
         if scope == "server":
             params["scope"] = "server"
         return legacy._intent_contract("top_contributors", params)
@@ -206,5 +214,8 @@ def validate_intent_contract(contract):
     normalized["parameters"] = params
     normalized["confidence"] = float(contract["confidence"])
     normalized = legacy._json_value(normalized)
-    json.dumps(normalized)
+    try:
+        json.dumps(normalized)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("intent contract must be JSON serializable") from exc
     return normalized
