@@ -275,11 +275,17 @@ def _request_payload(question, known_alliance_names):
 
 
 def _chat_messages(question, known_alliance_names):
-    """Use broadly supported Chat Completions roles for compatible gateways."""
+    """Use broadly supported roles and include the required JSON shape."""
     messages = []
     for message in _request_payload(question, known_alliance_names):
         role = "system" if message["role"] == "developer" else message["role"]
-        messages.append({"role": role, "content": message["content"]})
+        content = message["content"]
+        if role == "system":
+            content += (
+                " The response must be one JSON object matching this schema exactly: "
+                + json.dumps(AI_INTENT_CANDIDATE_SCHEMA, ensure_ascii=False, sort_keys=True)
+            )
+        messages.append({"role": role, "content": content})
     return messages
 
 
