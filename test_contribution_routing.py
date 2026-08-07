@@ -68,16 +68,13 @@ def test_who_contributed_most_routes_to_single_player_mode():
     assert validate_intent_contract(contract) == contract
 
 
-def test_named_alliance_who_question_keeps_player_subject():
+def test_named_alliance_who_question_preserves_grouped_output():
     contract = route_dashboard_question(
         "Who contributed most in AAA?",
         ["AAA", "BBB"],
     )
     assert contract["intent"] == "top_contributors"
-    assert contract["parameters"] == {
-        "alliance_names": ["AAA"],
-        "mode": "leader",
-    }
+    assert contract["parameters"] == {"alliance_names": ["AAA"]}
 
 
 def test_alliance_positive_score_question_routes_to_alliance_level():
