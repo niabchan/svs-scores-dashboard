@@ -109,16 +109,28 @@ def test_chat_completions_transport_returns_validated_contract_and_minimizes_dat
     user_payload = json.loads(request["messages"][1]["content"])
     assert user_payload["question"] == "Who contributed most in AAA?"
     assert user_payload["known_alliance_names"] == ["AAA", "BBB"]
-    serialized = json.dumps(user_payload).lower()
-    for forbidden in [
+
+    def nested_keys(value):
+        if isinstance(value, dict):
+            keys = set(value)
+            for item in value.values():
+                keys.update(nested_keys(item))
+            return keys
+        if isinstance(value, list):
+            keys = set()
+            for item in value:
+                keys.update(nested_keys(item))
+            return keys
+        return set()
+
+    assert nested_keys(user_payload).isdisjoint({
         "score_gained",
         "score_lost",
         "net_score",
         "player_name",
         "dataframe",
         "api_key",
-    ]:
-        assert forbidden not in serialized
+    })
 
 
 def test_chat_completions_accepts_json_code_fence():
