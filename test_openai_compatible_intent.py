@@ -94,6 +94,17 @@ def test_chat_completions_transport_returns_validated_contract_and_minimizes_dat
     assert "response_format" not in request
     assert request["messages"][0]["role"] == "system"
     assert request["messages"][1]["role"] == "user"
+    system_prompt = request["messages"][0]["content"]
+    assert "additionalProperties" in system_prompt
+    assert all(field in system_prompt for field in [
+        "intent",
+        "requested_direction",
+        "alliance_names",
+        "excluded_alliances",
+        "match_status",
+        "guidance_code",
+        "confidence",
+    ])
 
     user_payload = json.loads(request["messages"][1]["content"])
     assert user_payload["question"] == "Who contributed most in AAA?"
