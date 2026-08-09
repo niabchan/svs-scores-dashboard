@@ -44,16 +44,11 @@ def _render_alliance_net_score_ranking(answer):
         "Only alliance total net score is ranked here. Positive-contribution rank "
         "is a separate metric and is not part of this list."
     )
-    filter_note = (
-        "This ranking uses only the data remaining under the current sidebar filters "
-        "and the selected SVS period. Selecting an earlier period recalculates the "
-        "ranking for that period; it does not default to the latest SVS."
-    )
 
     return (
         f"{intro}\n\n"
         f"**Alliance net-score ranking — current filters**\n{ranking_lines}"
-        f"\n\n{metric_note}\n\n{filter_note}"
+        f"\n\n{metric_note}"
     )
 
 
