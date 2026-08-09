@@ -72,10 +72,6 @@ def _unsupported_message(answer):
         "- Why did the negative share rise?"
     )
     if not question:
-        # Direct executor callers from the rule-only era may render a guidance
-        # result without preserving the original question. Keep the old phrase
-        # only in a compatibility note for that internal path; normal dashboard
-        # answers always carry the question and never show this note.
         message += (
             "\n\nLegacy compatibility note: an earlier version described this as "
             "rule-based matching rather than an AI API; the current dashboard uses hybrid routing."
@@ -143,7 +139,6 @@ def _render_player_leader(answer):
 
 
 def _render_player_net_score_leader(answer):
-    """Render a player ranking with an explicit player-versus-alliance boundary."""
     guidance = _status_message(answer)
     if guidance:
         return guidance
