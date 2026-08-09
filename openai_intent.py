@@ -81,7 +81,7 @@ def build_openai_client_options(api_key, base_url=None):
     ``OPENAI_BASE_URL`` is the standard OpenAI SDK environment variable and can
     point the same client at an OpenAI-compatible gateway such as 9arm.
     """
-    options = {"api_key": api_key, "timeout": 10.0, "max_retries": 0}
+    options = {"api_key": api_key, "timeout": 60.0, "max_retries": 0}
     resolved_base_url = base_url or os.environ.get("OPENAI_BASE_URL")
     if resolved_base_url:
         options["base_url"] = str(resolved_base_url).strip().rstrip("/")
@@ -163,12 +163,18 @@ def build_api_intent_contract(candidate):
     elif intent == "alliance_exclusion_total_net":
         parameters = {"excluded_alliances": candidate.get("excluded_alliances")}
 
+    confidence = candidate.get("confidence")
+    if intent == "unsupported_question":
+        # The local contract uses 0.0 as a deterministic unsupported sentinel,
+        # rather than the model's confidence in that classification.
+        confidence = 0.0
+
     contract = {
         "schema_version": INTENT_CONTRACT_SCHEMA_VERSION,
         "intent": intent,
         "parameters": parameters,
         "source": "api",
-        "confidence": candidate.get("confidence"),
+        "confidence": confidence,
         "match_status": candidate.get("match_status"),
         "guidance_code": candidate.get("guidance_code"),
     }
@@ -252,9 +258,11 @@ def _request_payload(question, known_alliance_names):
         "qualities from score data. Classify broad questions such as top alliance score, "
         "where no specific metric is named, as alliance_score_overview. "
         "Never invent alliance names outside the supplied known_alliance_names list. "
-        "Use unsupported_question when no supported intent applies. Use needs_clarification "
-        "only for alliance_exclusion_total_net with a missing alliance name. Do not answer "
-        "the user's question in prose. Return only the structured extraction candidate."
+        "Use unsupported_question when no supported intent applies. For unsupported_question, "
+        "set match_status to unsupported, guidance_code to unsupported_question, confidence "
+        "to 0.0, and both alliance arrays to empty. Use needs_clarification only for "
+        "alliance_exclusion_total_net with a missing alliance name. Do not answer the user's "
+        "question in prose. Do not reveal reasoning. Return only the structured extraction candidate."
     )
     user_payload = {
         "question": str(question),
@@ -332,9 +340,9 @@ def extract_intent_contract_with_responses(question, known_alliance_names, *, cl
 def extract_intent_contract_with_chat_completions(question, known_alliance_names, *, client, model):
     """Extract a validated intent contract through an OpenAI-compatible gateway.
 
-    The request deliberately avoids provider-specific structured-output options.
-    The model is instructed to return JSON, then the same strict local candidate
-    and intent-contract validation used by the Responses path is applied.
+    Thinking is disabled for this narrow classification task when the gateway
+    supports Qwen chat-template options. The same strict local validation is
+    applied to the returned JSON.
     """
     if client is None or not model:
         raise OpenAIIntentError(AI_DIAGNOSTIC_API_UNAVAILABLE)
@@ -342,7 +350,8 @@ def extract_intent_contract_with_chat_completions(question, known_alliance_names
         model=model,
         messages=_chat_messages(question, known_alliance_names),
         temperature=0,
-        max_tokens=500,
+        max_tokens=1200,
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
     )
     return _decode_candidate(_chat_completion_text(response), known_alliance_names)
 
