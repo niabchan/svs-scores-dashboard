@@ -32,7 +32,7 @@ from ._calculation import (  # noqa: E402,F401
     execute_dashboard_intent,
     route_dashboard_question_hybrid,
 )
-from ._rendering import (  # noqa: E402,F401
+from ._ranking_rendering import (  # noqa: E402,F401
     answer_dashboard_question,
     render_dashboard_answer,
 )
