@@ -11,13 +11,13 @@ svs_date,alliance,player_name,score_gained,score_lost,net_score,net_status,compe
 2026-W23,TDA,LV 36 Myself,"357,540,459","  388,404,384 ","-30,863,925",Negative,10
 2026-W23,SnS,Phobi,"308,270,209","  738,721,792 ","-430,451,583",Negative,11
 2026-W23,TDA,Niv.36 Hieu,"205,263,811","  234,605,488 ","-29,341,677",Negative,12
-2026-W23,TDA,Ng Sâm...!,"184,759,377","  206,590,480 ","-21,831,103",Negative,13
+2026-W23,TDA,Ng Sâm,"184,759,377","  206,590,480 ","-21,831,103",Negative,13
 2026-W23,TDA,Nắng✨,"146,125,918","  216,649,536 ","-70,523,618",Negative,14
 2026-W23,NoM,Zanka💜💣,"132,877,436","  940,523 ","131,936,913",Positive,15
 2026-W23,TDA,Lv36 Gió,"119,164,511","  376,893,056 ","-257,728,545",Negative,16
 2026-W23,TDA,Lv35 NhiZambo,"117,299,880","  6,703,194 ","110,596,686",Positive,17
 2026-W23,NoM,Butcher Tig,"110,758,091","  140,014,688 ","-29,256,597",Negative,18
-2026-W23,TDA,Langzu!,"60,078,044","  59,731,264 ","346,780",Positive,19
+2026-W23,TDA,Langzu,"60,078,044","  59,731,264 ","346,780",Positive,19
 2026-W23,TDA,An'Giang,"46,184,640","  51,584,544 ","-5,399,904",Negative,20
 2026-W23,TDA,LEON.D,"34,290,202","  15,279,180 ","19,011,022",Positive,21
 2026-W23,LIM,Forever. JR,"22,984,314","  4,452,928 ","18,531,386",Positive,22
@@ -39,7 +39,7 @@ svs_date,alliance,player_name,score_gained,score_lost,net_score,net_status,compe
 2026-W23,GEM,HoSs' s as1,"1,218,500", NULL,"1,218,500",Positive,38
 2026-W23,HKS,yoshi55,"1,132,096","  13,328,478 ","- 12,196,382 ",Negative,39
 2026-W23,SnS,Spiders M,"1,039,000", NULL,"1,039,000",Positive,40
-2026-W23,GEM,NICU...,"1,003,000", NULL,"1,003,000",Positive,41
+2026-W23,GEM,NICU,"1,003,000", NULL,"1,003,000",Positive,41
 2026-W23,SnS,Tazy,"993,000", NULL,"993,000",Positive,42
 2026-W23,MBV,Ty,"901,500", NULL,"901,500",Positive,43
 2026-W23,GEM,Lady😇A,"900,000", NULL,"900,000",Positive,44
@@ -124,9 +124,9 @@ svs_date,alliance,player_name,score_gained,score_lost,net_score,net_status,compe
 2026-W25,TDA,Pub515,"240,842,727","142,904,352","97,938,375",Positive,18
 2026-W25,NoM,Mïɳîöɳ,"212,739,487","16,684,744","196,054,743",Positive,19
 2026-W25,TDA,Eduardo_🐉,"208,657,391","1,899,160,192","-1,690,502,801",Negative,20
-2026-W25,NoM,S†ink💣,"67,238,680","188,225,168","-120,986,488",Negative,21
+2026-W25,NoM,S†ïŋk💣,"67,238,680","188,225,168","-120,986,488",Negative,21
 2026-W25,TDA,An'Giang,"58,811,150","38,271,264","20,539,886",Positive,22
-2026-W25,TDA,Langzu!,"53,061,014","3,573,025","49,487,989",Positive,23
+2026-W25,TDA,Langzu,"53,061,014","3,573,025","49,487,989",Positive,23
 2026-W25,TDA,Hoa An 2019,"41,791,623","753,914","41,037,709",Positive,24
 2026-W25,TDA,Eroril,"26,177,206","2,342,878","23,834,328",Positive,25
 2026-W25,LIM,Forever. JR,"20,961,696","1,968,696","18,993,000",Positive,26
@@ -163,7 +163,7 @@ svs_date,alliance,player_name,score_gained,score_lost,net_score,net_status,compe
 2026-W25,SnS,Lykke°,"1,300,000",NULL,"1,300,000",Positive,57
 2026-W25,Ash,lord1.,"1,283,886","96,829,512","-95,545,626",Negative,58
 2026-W25,1ST,Graham01,"1,265,500",NULL,"1,265,500",Positive,59
-2026-W25,GEM,NICU...,"1,103,000",NULL,"1,103,000",Positive,60
+2026-W25,GEM,NICU,"1,103,000",NULL,"1,103,000",Positive,60
 2026-W25,SnS,DR LEGO,"1,057,000",NULL,"1,057,000",Positive,61
 2026-W25,RC2,ALMAFUERTE 24,"1,007,500",NULL,"1,007,500",Positive,62
 2026-W25,WHY,Konanx69,"1,000,000",NULL,"1,000,000",Positive,63
@@ -301,8 +301,8 @@ svs_date,alliance,player_name,score_gained,score_lost,net_score,net_status,compe
 2026-W27,ALX,TN TITAN #89,"309,500",NULL,"309,500",Positive,85
 2026-W27,--,Ramzi★RT,"305,820",NULL,"305,820",Positive,86
 2026-W27,RC2,Neco..1977,"300,000","50,000","250,000",Positive,87
-2026-W27,TDA,Ngọc Sâm...,"300,000","350,151","-50,151",Negative,88
-2026-W27,SnS,Lv 35 R@fal,"300,000",NULL,"300,000",Positive,89
+2026-W27,TDA,Ngọc Sâm,"300,000","350,151","-50,151",Negative,88
+2026-W27,SnS,Lv 35 R@fa,"300,000",NULL,"300,000",Positive,89
 2026-W27,TDA,CRIMINALE,"300,000",NULL,"300,000",Positive,90
 2026-W27,NoM,Manuel,"300,000",NULL,"300,000",Positive,91
 2026-W27,WHY,Naumar. D.,"300,000",NULL,"300,000",Positive,92
@@ -351,10 +351,10 @@ svs_date,alliance,player_name,score_gained,score_lost,net_score,net_status,compe
 2026-W29,NoM,"N""@!)","183,500,000","54,653,972","128,846,028",Positive,20
 2026-W29,NoM,Butcher Tig,"180,800,000","1,429,317","179,370,683",Positive,21
 2026-W29,MBV,TKM,"174,700,000","89,436,856","85,263,144",Positive,22
-2026-W29,TDA,Ngọc Sâm...,"173,600,000","2,395,819","171,204,181",Positive,23
+2026-W29,TDA,Ngọc Sâm,"173,600,000","2,395,819","171,204,181",Positive,23
 2026-W29,NoM,Zanka💜💣,"62,100,000","4,107,279","57,992,721",Positive,24
 2026-W29,MBV,ore beaver,"60,800,000","2,925,324","57,874,676",Positive,25
-2026-W29,TDA,Lập Xuân,"60,100,000","2,784,735","57,315,265",Positive,26
+2026-W29,TDA,Lập Xù,"60,100,000","2,784,735","57,315,265",Positive,26
 2026-W29,DZF,Nezuko_🐇,"51,800,000","843,028,160","-791,228,160",Negative,27
 2026-W29,TDA,Vï†åru§h,"34,200,000","10,721,143","23,478,857",Positive,28
 2026-W29,NoM,Mad Dog😡,"26,800,000","94,028,416","-67,228,416",Negative,29
@@ -375,7 +375,7 @@ svs_date,alliance,player_name,score_gained,score_lost,net_score,net_status,compe
 2026-W29,TDA,Langzu!,"2,300,000","2,355,463","-55,463",Negative,44
 2026-W29,MBV,Odin,"1,900,000",NULL,"1,900,000",Positive,45
 2026-W29,WHY,DJ sedgewick,"1,800,000",NULL,"1,800,000",Positive,46
-2026-W29,ALX,YESI...,"1,800,000",NULL,"1,800,000",Positive,47
+2026-W29,ALX,YESI,"1,800,000",NULL,"1,800,000",Positive,47
 2026-W29,WHY,DaisyD 💀,"1,800,000",NULL,"1,800,000",Positive,48
 2026-W29,SnS,Tazy,"1,600,000",NULL,"1,600,000",Positive,49
 2026-W29,TDA,Eragón -🐉,"1,500,000",NULL,"1,500,000",Positive,50
@@ -429,3 +429,103 @@ svs_date,alliance,player_name,score_gained,score_lost,net_score,net_status,compe
 2026-W29,WHY,Miki,"237,500",NULL,"237,500",Positive,98
 2026-W29,ALX,TN TITAN #89,"233,000",NULL,"233,000",Positive,99
 2026-W29,GEM,Sweeneydds,"227,500",NULL,"227,500",Positive,100
+2026-W31,SnS,PEQ,"5,000,000,000","4,666,344,448","333,655,552",Positive,1
+2026-W31,TDA,Sóc,"3,400,000,000","1,985,073,792","1,414,926,208",Positive,2
+2026-W31,MBV,Ministry,"2,600,000,000","4,386,971,648","-1,786,971,648",Negative,3
+2026-W31,MBV,Gravy 2.0,"2,600,000,000","1,149,214,080","1,450,785,920",Positive,4
+2026-W31,TDA,Lv36 Gió,"1,900,000,000","2,021,197,568","-121,197,568",Negative,5
+2026-W31,NoM,K_NO_OZ,"1,700,000,000","99,043,032","1,600,956,968",Positive,6
+2026-W31,TDA,NẵnG,"1,500,000,000","1,077,343,360","422,656,640",Positive,7
+2026-W31,TDA,V.phong81,"1,300,000,000","2,354,773,248","-1,054,773,248",Negative,8
+2026-W31,NoM,S†ïŋk,"1,300,000,000","740,399,552","559,600,448",Positive,9
+2026-W31,TDA,Lv38 Hell Boy,"1,300,000,000","1,373,010,176","-73,010,176",Negative,10
+2026-W31,MBV,Ty,"1,000,000,000","785,358,848","214,641,152",Positive,11
+2026-W31,NoM,MełonBomb,"907,000,000","277,312,448","629,687,552",Positive,12
+2026-W31,ALX,RangKayo,"734,900,000","383,216,128","351,683,872",Positive,13
+2026-W31,TDA,Lv36 Hieu,"722,200,000","473,333,280","248,866,720",Positive,14
+2026-W31,SnS,Blaryon,"637,700,000","6,736,305,152","-6,098,605,152",Negative,15
+2026-W31,SnS,GaïaGaïa,"633,300,000","369,766,080","263,533,920",Positive,16
+2026-W31,NoM,Mad Dog,"435,300,000","323,301,440","111,998,560",Positive,17
+2026-W31,TDA,LV 36 Myself,"410,900,000","763,937,792","-353,037,792",Negative,18
+2026-W31,NoM,Zanka,"409,600,000","275,103,584","134,496,416",Positive,19
+2026-W31,TDA,Spiders,"308,000,000","779,590,784","-471,590,784",Negative,20
+2026-W31,NoM,Mïɳîöɳ,"179,000,000","180,362,960","-1,362,960",Negative,21
+2026-W31,NoM,Richewas_,"152,600,000","133,930,504","18,669,496",Positive,22
+2026-W31,NoM,Lv 35 Butch,"142,900,000","3,241,493","139,658,507",Positive,23
+2026-W31,ALX,-----A------,"120,100,000","115,000,000","5,100,000",Positive,24
+2026-W31,NoM,"N""@!)","84,100,000","68,167,440","15,932,560",Positive,25
+2026-W31,TDA,Langzu,"74,600,000","86,650,968","-12,050,968",Negative,26
+2026-W31,SnS,Phobi,"70,600,000","274,649,280","-204,049,280",Negative,27
+2026-W31,TDA,KissM€,"47,700,000","10,007,466","37,692,534",Positive,28
+2026-W31,TDA,Pub515,"45,400,000","576,004","44,823,996",Positive,29
+2026-W31,MBV,TKM,"38,400,000","91,377,856","-52,977,856",Negative,30
+2026-W31,TDA,Ngọc Sâm,"37,400,000","54,726,900","-17,326,900",Negative,31
+2026-W31,TDA,Hoa An 2019,"36,200,000","25,438,892","10,761,108",Positive,32
+2026-W31,TDZ,Shadow Ivan,"30,300,000","245,579,744","-215,279,744",Negative,33
+2026-W31,TDA,LV36-TH-1979,"17,300,000","22,143,254","-4,843,254",Negative,34
+2026-W31,SnS,FARA&T,"13,900,000","297,717,792","-283,817,792",Negative,35
+2026-W31,NoM,bouky,"10,700,000",NULL,"10,700,000",Positive,36
+2026-W31,TDA,Phúc Trầnn,"8,800,000","7,757,080","1,042,920",Positive,37
+2026-W31,NoM,Meow zart,"8,300,000",NULL,"8,300,000",Positive,38
+2026-W31,MBV,Cooper B.,"7,400,000",NULL,"7,400,000",Positive,39
+2026-W31,TDA,RAJ,"7,200,000","173,261,216","-166,061,216",Negative,40
+2026-W31,LOL,stormdesert,"6,700,000","502,409","6,197,591",Positive,41
+2026-W31,SnS,☆Krishna,"5,100,000","93,265,600","-88,165,600",Negative,42
+2026-W31,FUN,al- kaseh,"3,700,000","227,998,944","-224,298,944",Negative,43
+2026-W31,1ST,Graham01,"2,900,000",NULL,"2,900,000",Positive,44
+2026-W31,TDA,vivacious_tg,"2,800,000",NULL,"2,800,000",Positive,45
+2026-W31,SnS,DR LEGO,"2,600,000",NULL,"2,600,000",Positive,46
+2026-W31,SnS,X.L.,"2,600,000",NULL,"2,600,000",Positive,47
+2026-W31,GEM,Sanék,"2,600,000","126,819,056","-124,219,056",Negative,48
+2026-W31,LIM,Forever. JR,"2,300,000","7,317,648","-5,017,648",Negative,49
+2026-W31,SnS,JZX100,"2,300,000",NULL,"2,300,000",Positive,50
+2026-W31,GEM,Lady A,"2,000,000",NULL,"2,000,000",Positive,51
+2026-W31,SnS,"Lv 32 Jay,","2,000,000",NULL,"2,000,000",Positive,52
+2026-W31,SnS,ScooterSwift,"1,900,000",NULL,"1,900,000",Positive,53
+2026-W31,NoM,Dimp jr,"1,900,000","1,632,426","267,574",Positive,54
+2026-W31,TDA,Eragón -,"1,500,000",NULL,"1,500,000",Positive,55
+2026-W31,GEM,HoSs’ s as1,"1,400,000",NULL,"1,400,000",Positive,56
+2026-W31,SnS,JULES,"1,300,000",NULL,"1,300,000",Positive,57
+2026-W31,SnS,B.e.n.,"1,300,000",NULL,"1,300,000",Positive,58
+2026-W31,WHY,DJ sedgewick,"1,200,000",NULL,"1,200,000",Positive,59
+2026-W31,TDA,T@N0$Y$T£M,"1,200,000",NULL,"1,200,000",Positive,60
+2026-W31,SnS,Tazy,"1,200,000",NULL,"1,200,000",Positive,61
+2026-W31,bbl,EatWhatuKill,"1,200,000",NULL,"1,200,000",Positive,62
+2026-W31,aef,V.V.D,"1,200,000",NULL,"1,200,000",Positive,63
+2026-W31,RC2,j. millan,"1,200,000",NULL,"1,200,000",Positive,64
+2026-W31,MBV,Monarch74898990,"1,100,000","97,318,864","-96,218,864",Negative,65
+2026-W31,SnS,SuperSavage54,"1,000,000",NULL,"1,000,000",Positive,66
+2026-W31,ALX,Mat!a$,"1,000,000",NULL,"1,000,000",Positive,67
+2026-W31,WHY,Miki,"900,000",NULL,"900,000",Positive,68
+2026-W31,1ST,szepi,"892,700","33,669,272","-32,776,572",Negative,69
+2026-W31,WHY,DJ smurf,"803,000",NULL,"803,000",Positive,70
+2026-W31,SnS,NUTSHELL,"800,000",NULL,"800,000",Positive,71
+2026-W31,LIM,CAMILO,"800,000",NULL,"800,000",Positive,72
+2026-W31,GEM,Sweeneydds,"699,000",NULL,"699,000",Positive,73
+2026-W31,WHY,Little BB,"612,000",NULL,"612,000",Positive,74
+2026-W31,NoM,Lord Tazz,"581,100","1,197,920","-616,820",Negative,75
+2026-W31,TDA,DucTuan,"537,400","532,780","4,620",Positive,76
+2026-W31,WHY,ChewyDidit,"522,500",NULL,"522,500",Positive,77
+2026-W31,NoM,Drew,"501,500",NULL,"501,500",Positive,78
+2026-W31,TDA,666 THADER,"500,000",NULL,"500,000",Positive,79
+2026-W31,TDA,Vï†åru § h,"500,000",NULL,"500,000",Positive,80
+2026-W31,LIM,David 623,"446,600","75,757,960","-75,311,360",Negative,81
+2026-W31,GEM,THUNDER 03,"424,000",NULL,"424,000",Positive,82
+2026-W31,WHY,Iam.Scorpio,"418,000",NULL,"418,000",Positive,83
+2026-W31,LIM,Foncy ichan,"401,500",NULL,"401,500",Positive,84
+2026-W31,SnS,LucianoJr,"400,000",NULL,"400,000",Positive,85
+2026-W31,SnS,Funplay24,"400,000",NULL,"400,000",Positive,86
+2026-W31,ALX,Haruko,"375,000",NULL,"375,000",Positive,87
+2026-W31,NoM,DarkLord Tazz,"363,700","832,710","-469,010",Negative,88
+2026-W31,HKS,パ*ツラバ,"316,900",NULL,"316,900",Positive,89
+2026-W31,SnS,Salmu,"307,500",NULL,"307,500",Positive,90
+2026-W31,MBV,Odin,"303,000",NULL,"303,000",Positive,91
+2026-W31,GEM,Krisssh,"300,000",NULL,"300,000",Positive,92
+2026-W31,TDA,Eroril,"300,000",NULL,"300,000",Positive,93
+2026-W31,1ST,Big and Sexy,"292,900","16,177,702","-15,884,802",Negative,94
+2026-W31,GEM,Sinng is King,"278,200","7,816,739","-7,538,539",Negative,95
+2026-W31,NoM,Angel Bad,"266,000",NULL,"266,000",Positive,96
+2026-W31,WHY,Heiderman,"215,500",NULL,"215,500",Positive,97
+2026-W31,Ash,lord1.,"215,500",NULL,"215,500",Positive,98
+2026-W31,WHY,rockcite,"210,500",NULL,"210,500",Positive,99
+2026-W31,SnS,Lykke°,"207,500",NULL,"207,500",Positive,100
