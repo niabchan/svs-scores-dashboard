@@ -13,7 +13,7 @@ QUESTION_TOP_CONTRIBUTOR = "Who contributed the most under the current filters?"
 QUESTION_TOP_CONTRIBUTORS = "Show the top contributors within each selected alliance."
 SUGGESTED_QUESTIONS = [
     legacy.QUESTION_NET_VS_POSITIVE,
-    legacy.QUESTION_EXCLUSION_IMACT if False else legacy.QUESTION_EXCLUSION_IMPACT,
+    legacy.QUESTION_EXCLUSION_IMPACT,
     legacy.QUESTION_NEGATIVE_PERCENTAGE,
     QUESTION_TOP_CONTRIBUTOR,
     QUESTION_TOP_CONTRIBUTORS,
