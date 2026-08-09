@@ -40,16 +40,6 @@ def _render_alliance_net_score_ranking(answer):
         for row in rows
     )
 
-    leader_details = ""
-    if metrics.get("leader_count", len(leaders)) == 1:
-        leader = leaders[0]
-        leader_details = (
-            "\n\n**Leader breakdown**\n"
-            f"- **Positive contribution:** {legacy.format_score(leader['positive_contribution'])}\n"
-            f"- **Negative impact:** {legacy.format_score(leader['negative_impact'])}\n"
-            f"- **Positive-contribution rank:** #{leader['positive_rank']}"
-        )
-
     filter_note = (
         "This ranking uses only the data remaining under the current sidebar filters "
         "and the selected SVS period. Selecting an earlier period recalculates the "
@@ -59,7 +49,7 @@ def _render_alliance_net_score_ranking(answer):
     return (
         f"{intro}\n\n"
         f"**Alliance net-score ranking — current filters**\n{ranking_lines}"
-        f"{leader_details}\n\n{filter_note}"
+        f"\n\n{filter_note}"
     )
 
 
