@@ -40,24 +40,10 @@ def _render_alliance_net_score_ranking(answer):
         for row in rows
     )
 
-    explanation = ""
-    question_text = legacy.normalize_question_text(
-        answer.get("parameters", {}).get("question", "")
+    metric_note = (
+        "Only alliance total net score is ranked here. Positive-contribution rank "
+        "is a separate metric and is not part of this list."
     )
-    if (
-        "why" in question_text.split()
-        and metrics.get("leader_count", len(leaders)) == 1
-    ):
-        leader = leaders[0]
-        explanation = (
-            "\n\n**Why it leads**\n"
-            f"{leader['alliance']} has positive contribution of "
-            f"**{legacy.format_score(leader['positive_contribution'])}** and negative "
-            f"impact of **{legacy.format_score(leader['negative_impact'])}**. Their "
-            "difference produces the highest alliance net score under the current "
-            f"filters. **Positive-contribution rank:** #{leader['positive_rank']}."
-        )
-
     filter_note = (
         "This ranking uses only the data remaining under the current sidebar filters "
         "and the selected SVS period. Selecting an earlier period recalculates the "
@@ -67,7 +53,7 @@ def _render_alliance_net_score_ranking(answer):
     return (
         f"{intro}\n\n"
         f"**Alliance net-score ranking — current filters**\n{ranking_lines}"
-        f"{explanation}\n\n{filter_note}"
+        f"\n\n{metric_note}\n\n{filter_note}"
     )
 
 
