@@ -56,7 +56,7 @@ def test_client_options_accept_openai_compatible_base_url(monkeypatch):
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     assert build_openai_client_options("secret") == {
         "api_key": "secret",
-        "timeout": 10.0,
+        "timeout": 60.0,
         "max_retries": 0,
     }
 
@@ -90,21 +90,29 @@ def test_chat_completions_transport_returns_validated_contract_and_minimizes_dat
     request = client.completions.calls[0]
     assert request["model"] == "qwen3.6-35b-a3b"
     assert request["temperature"] == 0
-    assert request["max_tokens"] == 500
+    assert request["max_tokens"] == 1200
+    assert request["extra_body"] == {
+        "chat_template_kwargs": {"enable_thinking": False}
+    }
     assert "response_format" not in request
     assert request["messages"][0]["role"] == "system"
     assert request["messages"][1]["role"] == "user"
     system_prompt = request["messages"][0]["content"]
     assert "additionalProperties" in system_prompt
-    assert all(field in system_prompt for field in [
-        "intent",
-        "requested_direction",
-        "alliance_names",
-        "excluded_alliances",
-        "match_status",
-        "guidance_code",
-        "confidence",
-    ])
+    assert "Do not reveal reasoning" in system_prompt
+    assert "confidence to 0.0" in system_prompt
+    assert all(
+        field in system_prompt
+        for field in [
+            "intent",
+            "requested_direction",
+            "alliance_names",
+            "excluded_alliances",
+            "match_status",
+            "guidance_code",
+            "confidence",
+        ]
+    )
 
     user_payload = json.loads(request["messages"][1]["content"])
     assert user_payload["question"] == "Who contributed most in AAA?"
@@ -123,14 +131,16 @@ def test_chat_completions_transport_returns_validated_contract_and_minimizes_dat
             return keys
         return set()
 
-    assert nested_keys(user_payload).isdisjoint({
-        "score_gained",
-        "score_lost",
-        "net_score",
-        "player_name",
-        "dataframe",
-        "api_key",
-    })
+    assert nested_keys(user_payload).isdisjoint(
+        {
+            "score_gained",
+            "score_lost",
+            "net_score",
+            "player_name",
+            "dataframe",
+            "api_key",
+        }
+    )
 
 
 def test_chat_completions_accepts_json_code_fence():
@@ -143,6 +153,28 @@ def test_chat_completions_accepts_json_code_fence():
         api_style="chat",
     )
     assert contract["parameters"]["alliance_names"] == ["AAA"]
+
+
+def test_unsupported_candidate_uses_contract_confidence_sentinel():
+    content = json.dumps(
+        valid_candidate(
+            intent="unsupported_question",
+            alliance_names=[],
+            match_status="unsupported",
+            guidance_code="unsupported_question",
+            confidence=0.8,
+        )
+    )
+    contract = extract_intent_contract_with_openai(
+        "Tell me how many bananas are on Mars.",
+        ["AAA"],
+        client=FakeChatClient(content=content),
+        model="qwen3.6-35b-a3b",
+        api_style="chat",
+    )
+    assert contract["intent"] == "unsupported_question"
+    assert contract["match_status"] == "unsupported"
+    assert contract["confidence"] == 0.0
 
 
 def test_chat_completions_rejects_malformed_json_with_safe_code():
