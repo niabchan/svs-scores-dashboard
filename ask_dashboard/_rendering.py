@@ -164,14 +164,14 @@ def _render_player_net_score_leader(answer):
         scope_text = f" within **{named_scope}**" if scope_names else ""
         intro = (
             f"Under the current sidebar filters{period_text}{scope_text}, {names} are tied "
-            f"for the highest player net score at **{legacy.format_signed_score(metrics['top_net_score'])}**."
+            f"for first by player net score at **{legacy.format_signed_score(metrics['top_net_score'])}**."
         )
     else:
         top = next((row for row in rows if row.get("rank") == 1), rows[0])
         scope_text = f" within **{named_scope}**" if scope_names else ""
         intro = (
             f"Under the current sidebar filters{period_text}{scope_text}, "
-            f"**{top['player_name']}** has the highest player net score with "
+            f"**{top['player_name']}** has the highest net score among players with "
             f"**{legacy.format_signed_score(top['net_score'])}**."
         )
 
