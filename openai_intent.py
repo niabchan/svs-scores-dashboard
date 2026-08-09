@@ -81,7 +81,7 @@ def build_openai_client_options(api_key, base_url=None):
     ``OPENAI_BASE_URL`` is the standard OpenAI SDK environment variable and can
     point the same client at an OpenAI-compatible gateway such as 9arm.
     """
-    options = {"api_key": api_key, "timeout": 60.0, "max_retries": 0}
+    options = {"api_key": api_key, "timeout": 10.0, "max_retries": 0}
     resolved_base_url = base_url or os.environ.get("OPENAI_BASE_URL")
     if resolved_base_url:
         options["base_url"] = str(resolved_base_url).strip().rstrip("/")
@@ -351,6 +351,7 @@ def extract_intent_contract_with_chat_completions(question, known_alliance_names
         messages=_chat_messages(question, known_alliance_names),
         temperature=0,
         max_tokens=1200,
+        timeout=60.0,
         extra_body={"chat_template_kwargs": {"enable_thinking": False}},
     )
     return _decode_candidate(_chat_completion_text(response), known_alliance_names)
