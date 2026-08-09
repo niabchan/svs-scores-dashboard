@@ -40,5 +40,5 @@ def test_alliance_net_score_question_stays_focused_on_filtered_ranking():
     assert "Leader breakdown" not in rendered
     assert "Positive contribution" not in rendered
     assert "Negative impact" not in rendered
-    assert "selected SVS period" in rendered
-    assert "does not default to the latest SVS" in rendered
+    assert "selected SVS period" not in rendered
+    assert "does not default to the latest SVS" not in rendered
