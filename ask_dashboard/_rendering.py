@@ -142,6 +142,67 @@ def _render_player_leader(answer):
     )
 
 
+def _render_player_net_score_leader(answer):
+    """Render a player ranking with an explicit player-versus-alliance boundary."""
+    guidance = _status_message(answer)
+    if guidance:
+        return guidance
+
+    metrics = answer.get("metrics", {})
+    rows = answer.get("rankings", {}).get("players", [])
+    params = answer.get("parameters", {})
+    scope_names = params.get("matched_alliances") or params.get("alliance_names") or []
+    period_text = legacy._period_text(answer.get("period"))
+    named_scope = "/".join(map(str, scope_names))
+
+    leaders = metrics.get("leaders") or [row for row in rows if row.get("rank") == 1]
+    if metrics.get("leader_count", len(leaders)) > 1:
+        names = ", ".join(
+            f"**{row['player_name']}**" + (f" ({row['alliance']})" if not scope_names else "")
+            for row in leaders
+        )
+        scope_text = f" within **{named_scope}**" if scope_names else ""
+        intro = (
+            f"Under the current sidebar filters{period_text}{scope_text}, {names} are tied "
+            f"for the highest player net score at **{legacy.format_signed_score(metrics['top_net_score'])}**."
+        )
+    else:
+        top = next((row for row in rows if row.get("rank") == 1), rows[0])
+        scope_text = f" within **{named_scope}**" if scope_names else ""
+        intro = (
+            f"Under the current sidebar filters{period_text}{scope_text}, "
+            f"**{top['player_name']}** has the highest player net score with "
+            f"**{legacy.format_signed_score(top['net_score'])}**."
+        )
+
+    ranking_title = (
+        f"**Top players in {named_scope} by net score**"
+        if scope_names
+        else "**Top players by net score under the current filters**"
+    )
+    ranking_lines = []
+    for row in rows[:3]:
+        alliance = "" if scope_names else f" ({row['alliance']})"
+        ranking_lines.append(
+            f"{row['rank']}. **{row['player_name']}**{alliance} — "
+            f"**{legacy.format_signed_score(row['net_score'])}**"
+        )
+    ranking = "\n".join(ranking_lines)
+
+    if scope_names:
+        boundary = (
+            f"This ranks players only within **{named_scope}**. It does not compare "
+            f"{named_scope}’s total alliance net score with other alliances."
+        )
+    else:
+        boundary = (
+            "This is a player ranking under the active filters; it does not identify "
+            "which alliance has the highest combined net score."
+        )
+
+    return f"{intro}\n\n{ranking_title}\n{ranking}\n\n{boundary}"
+
+
 def _render_alliance_leader(answer):
     guidance = _status_message(answer)
     if guidance:
@@ -195,6 +256,8 @@ def render_dashboard_answer(answer):
         return _status_message(answer) or ""
     if answer.get("intent") == ALLIANCE_POSITIVE_CONTRIBUTION_INTENT:
         rendered = _render_alliance_leader(answer)
+    elif answer.get("intent") == "player_net_score_leader":
+        rendered = _render_player_net_score_leader(answer)
     elif (
         answer.get("intent") == "top_contributors"
         and answer.get("metrics", {}).get("mode") == "leader"
