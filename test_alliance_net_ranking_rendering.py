@@ -49,8 +49,8 @@ def test_alliance_net_question_renders_full_ranking_for_selected_period():
     assert "Positive contribution:" not in rendered
     assert "Negative impact:" not in rendered
     assert "Positive-contribution rank is a separate metric" in rendered
-    assert "selected SVS period" in rendered
-    assert "does not default to the latest SVS" in rendered
+    assert "Selecting an earlier period" not in rendered
+    assert "does not default to the latest SVS" not in rendered
     assert "2026-W29" not in rendered
 
 
@@ -63,10 +63,10 @@ def test_alliance_net_ranking_contains_only_rows_left_by_current_filters():
     )
     rendered = render_dashboard_answer(answer)
 
+    assert "Under the current sidebar filters in 2026-W25" in rendered
     assert "1. **SnS** — **+2,000**" in rendered
     assert "2. **TDA** — **-400**" in rendered
     assert "NoM" not in rendered
-    assert "current sidebar filters" in rendered
 
 
 def test_leader_question_uses_the_same_deterministic_ranking_renderer():
