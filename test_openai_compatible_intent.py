@@ -56,7 +56,7 @@ def test_client_options_accept_openai_compatible_base_url(monkeypatch):
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     assert build_openai_client_options("secret") == {
         "api_key": "secret",
-        "timeout": 60.0,
+        "timeout": 10.0,
         "max_retries": 0,
     }
 
@@ -91,6 +91,7 @@ def test_chat_completions_transport_returns_validated_contract_and_minimizes_dat
     assert request["model"] == "qwen3.6-35b-a3b"
     assert request["temperature"] == 0
     assert request["max_tokens"] == 1200
+    assert request["timeout"] == 60.0
     assert request["extra_body"] == {
         "chat_template_kwargs": {"enable_thinking": False}
     }
