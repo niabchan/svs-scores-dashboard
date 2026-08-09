@@ -34,15 +34,25 @@ Recommended treatment:
 - Keep canonical English text as the source of meaning.
 - Add automated key and placeholder checks before moving files.
 
-### P1 — A translated sentence contains an English UI instruction
+### Context note — `Select all` is an intentional exact UI reference
 
-The Spanish ranking guide refers to the Streamlit control text **Select all** in English. Similar embedded control names should be audited in every locale. Control instructions should either use a localized label or avoid quoting framework-generated text that cannot be translated reliably.
+The ranking guide uses the English text **Select all** inside translated instructions because the Streamlit alliance multiselect generates that option and the project cannot localize it. Users must be told the exact text they will see in the control in order to switch from the default alliance subset to a server-wide ranking.
+
+This is not accidental English leakage. It is Tier 2 contextual help that connects the ranking chart to a framework-owned control label.
+
+Recommended treatment:
+
+- Preserve the literal label **Select all** in every locale while translating the surrounding instruction.
+- Style it consistently as an exact UI label, for example with bold or code formatting.
+- Keep the explanation near the ranking chart unless the interaction becomes self-evident through another design.
+- Revisit the exception only if Streamlit later supports localization for this option or the project replaces the control.
+- Do not make a generic automated rule that rejects this documented occurrence.
 
 ### P2 — Presentation markup lives inside translations
 
 Some values include `###` or `**`. This forces translators to preserve Markdown syntax and makes it harder to change heading level without editing every locale.
 
-Recommended treatment: store plain text in translations and apply `st.subheader`, `st.markdown`, or other presentation in code.
+Recommended treatment: store plain text in translations and apply `st.subheader`, `st.markdown`, or other presentation in code. Exact UI references such as **Select all** may still need deliberate inline emphasis, but that exception should be documented rather than treated as arbitrary presentation markup.
 
 ### P2 — Privacy copy is important but long
 
@@ -69,6 +79,7 @@ Recommended treatment: separate **interface language** from **question language 
 
 - How to read a chart
 - Filter-scope clarification
+- Exact framework-owned control labels needed to complete an action
 - Why a negative pie uses absolute values
 - What excluding players changes
 - Why a result may be approximate
@@ -116,9 +127,9 @@ Instead of repeating separate explanations above and below the same chart.
 
 1. Add key-parity and placeholder tests.
 2. Establish product, design, content, and localization context files.
-3. Inventory all hard-coded user-visible strings in `app.py` and `ask_dashboard.py`.
+3. Inventory all hard-coded user-visible strings in `app.py` and `ask_dashboard.py`, distinguishing accidental leakage from documented framework-owned labels.
 4. Localize the Ask Dashboard shell and state its question-language limitation.
 5. Remove duplicate tab/subheader pairs and consolidate repeated captions.
-6. Move extended guidance into contextual expanders.
+6. Move extended guidance into contextual expanders while retaining necessary action guidance such as the **Select all** instruction.
 7. Separate locale data from Streamlit presentation.
 8. Run rendered reviews for all five locales and narrow viewports.
