@@ -54,7 +54,7 @@ def test_named_alliance_player_leader_shows_only_the_scoped_player_ranking():
 
     assert answer["intent"] == "player_net_score_leader"
     assert answer["parameters"]["matched_alliances"] == ["SnS"]
-    assert "**PEQ** has the highest player net score" in rendered
+    assert "**PEQ** has the highest net score among players" in rendered
     assert "**Top players in SnS by net score**" in rendered
     assert "1. **PEQ** — **+333,655,552**" in rendered
     assert "2. **Second** — **+200,000,000**" in rendered
