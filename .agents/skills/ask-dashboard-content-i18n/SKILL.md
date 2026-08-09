@@ -17,7 +17,7 @@ Read these files before making recommendations or edits:
 4. `LOCALIZATION.md`
 5. the relevant sections of `app.py` and `ask_dashboard.py`
 
-Treat the product truths, metric distinctions, capability boundaries, and semantic constraints in those files as requirements.
+Treat the product truths, metric distinctions, capability boundaries, documented framework-owned labels, and semantic constraints in those files as requirements.
 
 ## Default mode
 
@@ -31,7 +31,7 @@ When implementation is requested, make the smallest coherent change and preserve
 
 Identify strings used for page, tab, section, chart, and table headings; filters and controls; captions, tooltips, guides, and expanders; empty, loading, error, and warning states; Ask Dashboard questions, answers, and feedback; and analytics or privacy explanations.
 
-Flag hard-coded English strings that bypass the translation system.
+Flag hard-coded English strings that bypass the translation system, but first distinguish them from documented exact references to framework-owned labels that users must match in the interface.
 
 ### 2. Classify content
 
@@ -45,7 +45,9 @@ Recommend moving content between tiers before rewriting it.
 
 ### 3. Check hierarchy and repetition
 
-Look for a tab label repeated as an identical subheader; a heading, caption, and reading guide that restate the same idea; repeated filter-scope explanations; instructions that describe obvious controls; and explanatory copy that appears before the result it explains.
+Look for a tab label repeated as an identical subheader; a heading, caption, and reading guide that restate the same idea; repeated filter-scope explanations; instructions that merely describe obvious controls; and explanatory copy that appears before the result it explains.
+
+Do not remove instructions that are necessary because a framework-owned control is not localizable or otherwise difficult to discover. The ranking guide's exact **Select all** reference is a documented example.
 
 Prefer one task-oriented heading and one short visible sentence. Preserve extended help behind progressive disclosure.
 
@@ -61,7 +63,9 @@ For `en`, `es`, `fr`, `vi`, and `id`:
 
 - compare key sets against canonical English
 - check blank values and placeholder parity
-- flag English leakage inside translated prose
+- distinguish accidental English leakage from documented exact control labels
+- preserve framework-owned labels exactly when users must identify that text in the UI
+- translate the surrounding instruction naturally
 - preserve player and alliance names unchanged
 - keep component markup outside translation values where practical
 - test long translations, long names, large values, and narrow viewports
@@ -90,7 +94,7 @@ Use Impeccable in this order when a rendered app is available:
 4. harden
 5. polish
 
-Ask it to report findings before editing. Give it `PRODUCT.md` and `DESIGN.md` as context. This skill remains the authority for project terminology, metric semantics, localization boundaries, and content-tier decisions.
+Ask it to report findings before editing. Give it `PRODUCT.md` and `DESIGN.md` as context. This skill remains the authority for project terminology, metric semantics, framework-label exceptions, localization boundaries, and content-tier decisions.
 
 ## Output format
 
