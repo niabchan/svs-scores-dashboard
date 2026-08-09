@@ -9,6 +9,7 @@ import pandas as pd
 from ._legacy import REPOSITORY_ROOT, legacy
 from ._routing import (
     ALLIANCE_POSITIVE_CONTRIBUTION_INTENT,
+    is_obvious_smalltalk_question,
     route_dashboard_question,
     validate_intent_contract,
 )
@@ -282,7 +283,11 @@ def route_dashboard_question_hybrid(
     rule_contract = validate_intent_contract(
         route_dashboard_question(question, known_alliance_names)
     )
-    if rule_contract["match_status"] != "unsupported" or not ai_enabled:
+    if (
+        rule_contract["match_status"] != "unsupported"
+        or not ai_enabled
+        or is_obvious_smalltalk_question(question)
+    ):
         return {
             "contract": rule_contract,
             "ai_attempted": False,
