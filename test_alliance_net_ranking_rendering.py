@@ -46,7 +46,9 @@ def test_alliance_net_question_renders_full_ranking_for_selected_period():
     assert "2. **SnS** — **+2,000**" in rendered
     assert "3. **TDA** — **-400**" in rendered
     assert "Leader breakdown" not in rendered
-    assert "Positive-contribution rank" not in rendered
+    assert "Positive contribution:" not in rendered
+    assert "Negative impact:" not in rendered
+    assert "Positive-contribution rank is a separate metric" in rendered
     assert "selected SVS period" in rendered
     assert "does not default to the latest SVS" in rendered
     assert "2026-W29" not in rendered
@@ -67,15 +69,14 @@ def test_alliance_net_ranking_contains_only_rows_left_by_current_filters():
     assert "current sidebar filters" in rendered
 
 
-def test_explicit_why_question_adds_a_short_leader_explanation():
-    answer = calculate_dashboard_answer(
+def test_leader_question_uses_the_same_deterministic_ranking_renderer():
+    wrapper = calculate_dashboard_answer(
         "Which alliance leads net score, and why?",
         _alliance_scores(),
         svs_period="2026-W27",
     )
-    rendered = render_dashboard_answer(answer)
+    rendered = render_dashboard_answer(wrapper)
 
-    assert "**Why it leads**" in rendered
-    assert "Positive-contribution rank" in rendered
-    assert "positive contribution" in rendered
-    assert "negative impact" in rendered
+    assert "1. **NoM** — **+3,000**" in rendered
+    assert "Leader breakdown" not in rendered
+    assert "Positive-contribution rank is a separate metric" in rendered
