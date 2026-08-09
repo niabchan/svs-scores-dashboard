@@ -1,12 +1,76 @@
-"""Direct, subject-aware rendering for contribution leader answers."""
+"""Direct, subject-aware rendering for Ask Dashboard answers."""
 
 from __future__ import annotations
+
+import re
 
 from ._legacy import legacy
 from ._routing import (
     ALLIANCE_POSITIVE_CONTRIBUTION_INTENT,
     SCORE_DERIVED_INTENTS,
+    is_obvious_smalltalk_question,
 )
+
+_METRIC_DEFINITIONS = (
+    (
+        ("net score",),
+        "**Net score** = **score gained − score lost**. A positive net score means the player or alliance gained more points than it lost; a negative value means losses were greater than gains. Ask Dashboard uses net score as its default measure of overall recorded result.",
+    ),
+    (
+        ("score gained",),
+        "**Score gained** is the total number of SVS points recorded as earned. It measures activity that added points, but it does not subtract score lost, so it is not the same as net score.",
+    ),
+    (
+        ("score lost",),
+        "**Score lost** is the total magnitude of SVS points recorded as lost. Ask Dashboard displays it as a positive loss amount and subtracts it from score gained when calculating net score.",
+    ),
+    (
+        ("positive contribution",),
+        "**Positive contribution** is the sum of **positive player net scores** in the selected scope. It counts only players whose net score is above zero; it is not simply the total score gained.",
+    ),
+    (
+        ("negative impact", "negative contribution"),
+        "**Negative impact** is the absolute total of **negative player net scores** in the selected scope. It shows how much the negative side reduced the result while keeping the displayed amount easy to compare as a positive magnitude.",
+    ),
+    (
+        ("negative share", "negative percentage", "negative percent", "negative ratio"),
+        "**Negative share** = **negative impact ÷ (positive contribution + negative impact) × 100**. It describes the negative side’s share of the total net-score magnitude, not the percentage of players who finished negative.",
+    ),
+)
+
+
+def _metric_definition(answer):
+    question = answer.get("parameters", {}).get("question", "")
+    text = legacy.normalize_question_text(question)
+    for aliases, definition in _METRIC_DEFINITIONS:
+        if any(alias in text for alias in aliases):
+            return definition
+    return None
+
+
+def _unsupported_message(answer):
+    question = answer.get("parameters", {}).get("question", "")
+    text = legacy.normalize_question_text(question)
+    if is_obvious_smalltalk_question(question):
+        return (
+            "Hello! Ask Dashboard is ready to help with the recorded SVS data. "
+            "Try asking about a player or alliance score, ranking, contribution, exclusion, or metric definition."
+        )
+    if re.search(r"\b(?:predict|prediction|future|next svs|will win|winner next)\b", text):
+        return (
+            "Ask Dashboard analyzes recorded SVS scores, so it cannot predict a future winner or the next SVS result. "
+            "It can summarize current rankings, contributions, losses, exclusions, and net-score leaders from the available data."
+        )
+    return (
+        "I could not match that question to one of the dashboard’s supported analyses. "
+        "Ask about recorded player or alliance scores, rankings, exclusions, positive contribution, negative impact, or metric definitions.\n\n"
+        "**Examples:**\n"
+        "- What is net score?\n"
+        "- Which player has the strongest overall balance?\n"
+        "- What is the total net score without TDA?\n"
+        "- Who contributed most in SnS?\n"
+        "- Why did the negative share rise?"
+    )
 
 
 def _status_message(answer):
@@ -15,6 +79,8 @@ def _status_message(answer):
         if answer.get("parameters", {}).get("scope") == "server":
             return "No positive player net score is available for the full server in this SVS period."
         return "No positive player net score is available under the current sidebar filters."
+    if code == "unsupported_question":
+        return _unsupported_message(answer)
     return legacy._status_message(answer)
 
 
@@ -111,6 +177,12 @@ def _show_notice(answer):
 def render_dashboard_answer(answer):
     if not isinstance(answer, dict):
         return str(answer)
+    if answer.get("intent") == "dashboard_help":
+        metric_definition = _metric_definition(answer)
+        if metric_definition:
+            return metric_definition
+    if answer.get("intent") == "unsupported_question":
+        return _status_message(answer) or ""
     if answer.get("intent") == ALLIANCE_POSITIVE_CONTRIBUTION_INTENT:
         rendered = _render_alliance_leader(answer)
     elif (
