@@ -1,12 +1,82 @@
-"""Direct, subject-aware rendering for contribution leader answers."""
+"""Direct, subject-aware rendering for Ask Dashboard answers."""
 
 from __future__ import annotations
+
+import re
 
 from ._legacy import legacy
 from ._routing import (
     ALLIANCE_POSITIVE_CONTRIBUTION_INTENT,
     SCORE_DERIVED_INTENTS,
+    is_obvious_smalltalk_question,
 )
+
+_METRIC_DEFINITIONS = (
+    (
+        ("net score",),
+        "**Net score** = **score gained − score lost**. A positive net score means the player or alliance gained more points than it lost; a negative value means losses were greater than gains. Ask Dashboard uses net score as its default measure of overall recorded result.",
+    ),
+    (
+        ("score gained",),
+        "**Score gained** is the total number of SVS points recorded as earned. It measures activity that added points, but it does not subtract score lost, so it is not the same as net score.",
+    ),
+    (
+        ("score lost",),
+        "**Score lost** is the total magnitude of SVS points recorded as lost. Ask Dashboard displays it as a positive loss amount and subtracts it from score gained when calculating net score.",
+    ),
+    (
+        ("positive contribution",),
+        "**Positive contribution** is the sum of **positive player net scores** in the selected scope. It counts only players whose net score is above zero; it is not simply the total score gained.",
+    ),
+    (
+        ("negative impact", "negative contribution"),
+        "**Negative impact** is the absolute total of **negative player net scores** in the selected scope. It shows how much the negative side reduced the result while keeping the displayed amount easy to compare as a positive magnitude.",
+    ),
+    (
+        ("negative share", "negative percentage", "negative percent", "negative ratio"),
+        "**Negative share** = **negative impact ÷ (positive contribution + negative impact) × 100**. It describes the negative side’s share of the total net-score magnitude, not the percentage of players who finished negative.",
+    ),
+)
+
+
+def _metric_definition(answer):
+    question = answer.get("parameters", {}).get("question", "")
+    text = legacy.normalize_question_text(question)
+    for aliases, definition in _METRIC_DEFINITIONS:
+        if any(alias in text for alias in aliases):
+            return definition
+    return None
+
+
+def _unsupported_message(answer):
+    question = answer.get("parameters", {}).get("question", "")
+    text = legacy.normalize_question_text(question)
+    if is_obvious_smalltalk_question(question):
+        return (
+            "Hello! Ask Dashboard is ready to help with the recorded SVS data. "
+            "Try asking about a player or alliance score, ranking, contribution, exclusion, or metric definition."
+        )
+    if re.search(r"\b(?:predict|prediction|future|next svs|will win|winner next)\b", text):
+        return (
+            "Ask Dashboard analyzes recorded SVS scores, so it cannot predict a future winner or the next SVS result. "
+            "It can summarize current rankings, contributions, losses, exclusions, and net-score leaders from the available data."
+        )
+    message = (
+        "I could not match that question to one of the dashboard’s supported analyses. "
+        "Ask about recorded player or alliance scores, rankings, exclusions, positive contribution, negative impact, or metric definitions.\n\n"
+        "**Examples:**\n"
+        "- What is net score?\n"
+        "- Which player has the strongest overall balance?\n"
+        "- What is the total net score without TDA?\n"
+        "- Who contributed most in SnS?\n"
+        "- Why did the negative share rise?"
+    )
+    if not question:
+        message += (
+            "\n\nLegacy compatibility note: an earlier version described this as "
+            "rule-based matching rather than an AI API; the current dashboard uses hybrid routing."
+        )
+    return message
 
 
 def _status_message(answer):
@@ -15,6 +85,8 @@ def _status_message(answer):
         if answer.get("parameters", {}).get("scope") == "server":
             return "No positive player net score is available for the full server in this SVS period."
         return "No positive player net score is available under the current sidebar filters."
+    if code == "unsupported_question":
+        return _unsupported_message(answer)
     return legacy._status_message(answer)
 
 
@@ -66,6 +138,66 @@ def _render_player_leader(answer):
     )
 
 
+def _render_player_net_score_leader(answer):
+    guidance = _status_message(answer)
+    if guidance:
+        return guidance
+
+    metrics = answer.get("metrics", {})
+    rows = answer.get("rankings", {}).get("players", [])
+    params = answer.get("parameters", {})
+    scope_names = params.get("matched_alliances") or params.get("alliance_names") or []
+    period_text = legacy._period_text(answer.get("period"))
+    named_scope = "/".join(map(str, scope_names))
+
+    leaders = metrics.get("leaders") or [row for row in rows if row.get("rank") == 1]
+    if metrics.get("leader_count", len(leaders)) > 1:
+        names = ", ".join(
+            f"**{row['player_name']}**" + (f" ({row['alliance']})" if not scope_names else "")
+            for row in leaders
+        )
+        scope_text = f" within **{named_scope}**" if scope_names else ""
+        intro = (
+            f"Under the current sidebar filters{period_text}{scope_text}, {names} are tied "
+            f"for first by player net score at **{legacy.format_signed_score(metrics['top_net_score'])}**."
+        )
+    else:
+        top = next((row for row in rows if row.get("rank") == 1), rows[0])
+        scope_text = f" within **{named_scope}**" if scope_names else ""
+        intro = (
+            f"Under the current sidebar filters{period_text}{scope_text}, "
+            f"**{top['player_name']}** has the highest net score among players with "
+            f"**{legacy.format_signed_score(top['net_score'])}**."
+        )
+
+    ranking_title = (
+        f"**Top players in {named_scope} by net score**"
+        if scope_names
+        else "**Top players by net score under the current filters**"
+    )
+    ranking_lines = []
+    for row in rows[:3]:
+        alliance = "" if scope_names else f" ({row['alliance']})"
+        ranking_lines.append(
+            f"{row['rank']}. **{row['player_name']}**{alliance} — "
+            f"**{legacy.format_signed_score(row['net_score'])}**"
+        )
+    ranking = "\n".join(ranking_lines)
+
+    if scope_names:
+        boundary = (
+            f"This ranks players only within **{named_scope}**. It does not compare "
+            f"{named_scope}’s total alliance net score with other alliances."
+        )
+    else:
+        boundary = (
+            "This is a player ranking under the active filters; it does not identify "
+            "which alliance has the highest combined net score."
+        )
+
+    return f"{intro}\n\n{ranking_title}\n{ranking}\n\n{boundary}"
+
+
 def _render_alliance_leader(answer):
     guidance = _status_message(answer)
     if guidance:
@@ -111,8 +243,16 @@ def _show_notice(answer):
 def render_dashboard_answer(answer):
     if not isinstance(answer, dict):
         return str(answer)
+    if answer.get("intent") == "dashboard_help":
+        metric_definition = _metric_definition(answer)
+        if metric_definition:
+            return metric_definition
+    if answer.get("intent") == "unsupported_question":
+        return _status_message(answer) or ""
     if answer.get("intent") == ALLIANCE_POSITIVE_CONTRIBUTION_INTENT:
         rendered = _render_alliance_leader(answer)
+    elif answer.get("intent") == "player_net_score_leader":
+        rendered = _render_player_net_score_leader(answer)
     elif (
         answer.get("intent") == "top_contributors"
         and answer.get("metrics", {}).get("mode") == "leader"

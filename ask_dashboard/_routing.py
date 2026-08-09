@@ -49,6 +49,28 @@ _SERVER_PHRASES = {
     "server-wide",
     "overall server",
 }
+_METRIC_DEFINITION_PATTERNS = (
+    r"^(?:what is|define|explain) (?:the )?(?:net score|score gained|score lost|positive contribution|negative impact|negative contribution|negative share|negative percentage|negative percent|negative ratio)$",
+    r"^what does (?:the )?(?:net score|score gained|score lost|positive contribution|negative impact|negative contribution|negative share|negative percentage|negative percent|negative ratio) mean$",
+    r"^how is (?:the )?(?:net score|score gained|score lost|positive contribution|negative impact|negative contribution|negative share|negative percentage|negative percent|negative ratio) (?:calculated|computed)$",
+    r"^how do you calculate (?:the )?(?:net score|score gained|score lost|positive contribution|negative impact|negative contribution|negative share|negative percentage|negative percent|negative ratio)$",
+)
+_PLAYER_BALANCE_PHRASES = {
+    "overall balance",
+    "final balance",
+    "best overall result",
+    "strongest overall result",
+    "best gain versus loss result",
+    "best gain vs loss result",
+    "finished furthest ahead",
+    "finished the furthest ahead",
+}
+_SMALLTALK_PATTERNS = (
+    r"^(?:hello|hi|hey)(?: there)?(?: how are you)?$",
+    r"^how are you$",
+    r"^good (?:morning|afternoon|evening)$",
+    r"^(?:thanks|thank you)(?: very much)?$",
+)
 
 
 def _has_contribution_language(text: str) -> bool:
@@ -57,6 +79,26 @@ def _has_contribution_language(text: str) -> bool:
 
 def _requested_scope(text: str) -> str:
     return "server" if any(phrase in text for phrase in _SERVER_PHRASES) else "current_filters"
+
+
+def _is_metric_definition_request(text: str) -> bool:
+    return any(re.fullmatch(pattern, text) for pattern in _METRIC_DEFINITION_PATTERNS)
+
+
+def _is_player_net_balance_request(text: str) -> bool:
+    words = set(text.split())
+    player_subject = bool(words.intersection({"who", "player", "players"}))
+    leader_language = bool(
+        words.intersection({"top", "best", "highest", "strongest", "furthest"})
+    )
+    balance_language = any(phrase in text for phrase in _PLAYER_BALANCE_PHRASES)
+    return player_subject and leader_language and balance_language
+
+
+def is_obvious_smalltalk_question(question: str) -> bool:
+    """Return True only for clear conversational messages that need no AI routing."""
+    text = legacy.normalize_question_text(question)
+    return any(re.fullmatch(pattern, text) for pattern in _SMALLTALK_PATTERNS)
 
 
 def _is_grouped_request(text: str) -> bool:
@@ -115,6 +157,14 @@ def route_dashboard_question(question, known_alliance_names=None):
     if question == QUESTION_TOP_CONTRIBUTORS:
         # Keep the historical parameter shape for existing callers/tests.
         return legacy._intent_contract("top_contributors", {"alliance_names": []})
+    if _is_metric_definition_request(normalized):
+        # Metric explanations are deterministic dashboard help and do not need
+        # an API classification or access to score rows.
+        return legacy._intent_contract("dashboard_help")
+    if _is_player_net_balance_request(normalized):
+        return legacy._intent_contract(
+            "player_net_score_leader", {"alliance_names": mentioned}
+        )
     if _is_alliance_leader_request(normalized):
         params = {} if scope == "current_filters" else {"scope": scope}
         return legacy._intent_contract(ALLIANCE_POSITIVE_CONTRIBUTION_INTENT, params)
