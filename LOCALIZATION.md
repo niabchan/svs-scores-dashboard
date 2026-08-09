@@ -23,8 +23,21 @@ Use localized limitation copy near the custom-question input rather than leaving
 - Values must be non-empty strings.
 - Preserve named placeholders and format fields exactly across locales.
 - Keep user-supplied player names and alliance names unchanged.
-- Do not embed language-specific UI control names such as “Select all” inside instructional prose unless that label is controlled and translated by this project.
+- When a framework-generated control label cannot be localized, preserve the exact label the user will see and translate the surrounding instruction.
+- Document every framework-owned label exception so it is not mistaken for accidental language leakage.
 - Keep Markdown and component styling outside translation values where practical.
+
+## Framework-owned label exception
+
+The alliance multiselect exposes a Streamlit-generated option labelled **Select all**. The project cannot currently localize that option. Ranking guidance therefore keeps the literal English label in every locale so users can identify the correct control and switch to a server-wide ranking.
+
+For this exception:
+
+- keep **Select all** unchanged;
+- translate the rest of the instruction naturally;
+- use consistent emphasis to show that it is an exact UI label;
+- keep the guidance near the ranking interaction;
+- revisit it only if the control later becomes localizable or is replaced.
 
 ## Canonical terminology
 
@@ -68,11 +81,14 @@ For each new or changed user-visible string:
 4. Are all five locale keys present?
 5. Are placeholders identical across locales?
 6. Does it avoid translating names and game identifiers?
-7. Does it fit narrow layouts when rendered, including wrapping?
-8. Has a fluent reviewer checked naturalness where practical?
+7. Is any untranslated UI term a documented exact control label rather than accidental leakage?
+8. Does it fit narrow layouts when rendered, including wrapping?
+9. Has a fluent reviewer checked naturalness where practical?
 
 ## Test policy
 
 Automated tests should block missing or extra locale keys, missing locale dictionaries, blank values, placeholder mismatches, and duplicate locale codes.
+
+Automated checks should not reject a documented exact framework label such as **Select all** merely because it remains English inside translated guidance.
 
 Rendered browser or Streamlit tests should additionally inspect wrapping, overflow, truncation, and mixed-language UI states.
