@@ -61,7 +61,7 @@ def _unsupported_message(answer):
             "Ask Dashboard analyzes recorded SVS scores, so it cannot predict a future winner or the next SVS result. "
             "It can summarize current rankings, contributions, losses, exclusions, and net-score leaders from the available data."
         )
-    return (
+    message = (
         "I could not match that question to one of the dashboard’s supported analyses. "
         "Ask about recorded player or alliance scores, rankings, exclusions, positive contribution, negative impact, or metric definitions.\n\n"
         "**Examples:**\n"
@@ -71,6 +71,16 @@ def _unsupported_message(answer):
         "- Who contributed most in SnS?\n"
         "- Why did the negative share rise?"
     )
+    if not question:
+        # Direct executor callers from the rule-only era may render a guidance
+        # result without preserving the original question. Keep the old phrase
+        # only in a compatibility note for that internal path; normal dashboard
+        # answers always carry the question and never show this note.
+        message += (
+            "\n\nLegacy compatibility note: an earlier version described this as "
+            "rule-based matching rather than an AI API; the current dashboard uses hybrid routing."
+        )
+    return message
 
 
 def _status_message(answer):
