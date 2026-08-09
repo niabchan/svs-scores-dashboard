@@ -1,10 +1,11 @@
-"""OpenAI-backed intent extraction for Ask Dashboard.
+"""OpenAI-compatible intent extraction for Ask Dashboard.
 
 This module only classifies a question into the existing intent contract. It does
 not calculate scores, render answers, or import dashboard data libraries.
 """
 
 import json
+import os
 
 from ask_dashboard import (
     INTENT_CONTRACT_SCHEMA_VERSION,
@@ -17,6 +18,13 @@ AI_DIAGNOSTIC_API_UNAVAILABLE = "api_unavailable"
 AI_DIAGNOSTIC_API_REFUSAL = "api_refusal"
 AI_DIAGNOSTIC_API_INCOMPLETE = "api_incomplete"
 AI_DIAGNOSTIC_API_INVALID_OUTPUT = "api_invalid_output"
+
+AI_API_STYLE_RESPONSES = "responses"
+AI_API_STYLE_CHAT_COMPLETIONS = "chat_completions"
+SUPPORTED_AI_API_STYLES = {
+    AI_API_STYLE_RESPONSES,
+    AI_API_STYLE_CHAT_COMPLETIONS,
+}
 
 AI_INTENT_CANDIDATE_FIELDS = {
     "intent",
@@ -67,9 +75,34 @@ class OpenAIIntentError(Exception):
         self.diagnostic_code = diagnostic_code
 
 
-def build_openai_client_options(api_key):
-    """Return bounded OpenAI client options without constructing a client."""
-    return {"api_key": api_key, "timeout": 10.0, "max_retries": 0}
+def build_openai_client_options(api_key, base_url=None):
+    """Return bounded OpenAI client options without constructing a client.
+
+    ``OPENAI_BASE_URL`` is the standard OpenAI SDK environment variable and can
+    point the same client at an OpenAI-compatible gateway such as 9arm.
+    """
+    options = {"api_key": api_key, "timeout": 10.0, "max_retries": 0}
+    resolved_base_url = base_url or os.environ.get("OPENAI_BASE_URL")
+    if resolved_base_url:
+        options["base_url"] = str(resolved_base_url).strip().rstrip("/")
+    return options
+
+
+def resolve_ai_api_style(api_style=None):
+    """Resolve the configured transport while keeping Responses as the default."""
+    raw_style = api_style or os.environ.get("ASK_DASHBOARD_AI_API_STYLE") or AI_API_STYLE_RESPONSES
+    normalized = str(raw_style).strip().lower().replace("-", "_")
+    aliases = {
+        "response": AI_API_STYLE_RESPONSES,
+        "responses_api": AI_API_STYLE_RESPONSES,
+        "chat": AI_API_STYLE_CHAT_COMPLETIONS,
+        "chat_completion": AI_API_STYLE_CHAT_COMPLETIONS,
+        "chat_completions_api": AI_API_STYLE_CHAT_COMPLETIONS,
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized not in SUPPORTED_AI_API_STYLES:
+        raise ValueError("unsupported AI API style")
+    return normalized
 
 
 def _field_names(fields):
@@ -130,12 +163,18 @@ def build_api_intent_contract(candidate):
     elif intent == "alliance_exclusion_total_net":
         parameters = {"excluded_alliances": candidate.get("excluded_alliances")}
 
+    confidence = candidate.get("confidence")
+    if intent == "unsupported_question":
+        # The local contract uses 0.0 as a deterministic unsupported sentinel,
+        # rather than the model's confidence in that classification.
+        confidence = 0.0
+
     contract = {
         "schema_version": INTENT_CONTRACT_SCHEMA_VERSION,
         "intent": intent,
         "parameters": parameters,
         "source": "api",
-        "confidence": candidate.get("confidence"),
+        "confidence": confidence,
         "match_status": candidate.get("match_status"),
         "guidance_code": candidate.get("guidance_code"),
     }
@@ -173,6 +212,42 @@ def _ensure_complete_response(response):
         raise OpenAIIntentError(AI_DIAGNOSTIC_API_INCOMPLETE)
 
 
+def _chat_completion_text(response):
+    choices = getattr(response, "choices", None) or []
+    if not choices:
+        raise OpenAIIntentError(AI_DIAGNOSTIC_API_INVALID_OUTPUT)
+
+    choice = choices[0]
+    finish_reason = getattr(choice, "finish_reason", None)
+    if finish_reason == "length":
+        raise OpenAIIntentError(AI_DIAGNOSTIC_API_INCOMPLETE)
+    if finish_reason == "content_filter":
+        raise OpenAIIntentError(AI_DIAGNOSTIC_API_REFUSAL)
+
+    message = getattr(choice, "message", None)
+    if message is None:
+        raise OpenAIIntentError(AI_DIAGNOSTIC_API_INVALID_OUTPUT)
+    if getattr(message, "refusal", None):
+        raise OpenAIIntentError(AI_DIAGNOSTIC_API_REFUSAL)
+
+    content = getattr(message, "content", None)
+    if isinstance(content, str) and content.strip():
+        return content
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, dict):
+                part_text = part.get("text")
+            else:
+                part_text = getattr(part, "text", None)
+            if part_text:
+                text_parts.append(str(part_text))
+        combined = "".join(text_parts).strip()
+        if combined:
+            return combined
+    raise OpenAIIntentError(AI_DIAGNOSTIC_API_INVALID_OUTPUT)
+
+
 def _request_payload(question, known_alliance_names):
     known_alliance_names = [str(name) for name in (known_alliance_names or [])]
     developer_instruction = (
@@ -183,9 +258,11 @@ def _request_payload(question, known_alliance_names):
         "qualities from score data. Classify broad questions such as top alliance score, "
         "where no specific metric is named, as alliance_score_overview. "
         "Never invent alliance names outside the supplied known_alliance_names list. "
-        "Use unsupported_question when no supported intent applies. Use needs_clarification "
-        "only for alliance_exclusion_total_net with a missing alliance name. Do not answer "
-        "the user's question in prose. Return only the structured extraction candidate."
+        "Use unsupported_question when no supported intent applies. For unsupported_question, "
+        "set match_status to unsupported, guidance_code to unsupported_question, confidence "
+        "to 0.0, and both alliance arrays to empty. Use needs_clarification only for "
+        "alliance_exclusion_total_net with a missing alliance name. Do not answer the user's "
+        "question in prose. Do not reveal reasoning. Return only the structured extraction candidate."
     )
     user_payload = {
         "question": str(question),
@@ -205,35 +282,107 @@ def _request_payload(question, known_alliance_names):
     ]
 
 
-def extract_intent_contract_with_openai(question, known_alliance_names, *, client, model):
+def _chat_messages(question, known_alliance_names):
+    """Use broadly supported roles and include the required JSON shape."""
+    messages = []
+    for message in _request_payload(question, known_alliance_names):
+        role = "system" if message["role"] == "developer" else message["role"]
+        content = message["content"]
+        if role == "system":
+            content += (
+                " The response must be one JSON object matching this schema exactly: "
+                + json.dumps(AI_INTENT_CANDIDATE_SCHEMA, ensure_ascii=False, sort_keys=True)
+            )
+        messages.append({"role": role, "content": content})
+    return messages
+
+
+def _decode_candidate(text, known_alliance_names):
+    if not isinstance(text, str):
+        raise OpenAIIntentError(AI_DIAGNOSTIC_API_INVALID_OUTPUT)
+    cleaned = text.strip()
+    if cleaned.startswith("```") and cleaned.endswith("```"):
+        cleaned = cleaned[3:-3].strip()
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].lstrip()
+    try:
+        candidate = json.loads(cleaned)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise OpenAIIntentError(AI_DIAGNOSTIC_API_INVALID_OUTPUT) from exc
+    try:
+        candidate = canonicalize_candidate_alliances(candidate, known_alliance_names)
+        return build_api_intent_contract(candidate)
+    except ValueError as exc:
+        raise OpenAIIntentError(AI_DIAGNOSTIC_API_INVALID_OUTPUT) from exc
+
+
+def extract_intent_contract_with_responses(question, known_alliance_names, *, client, model):
     """Extract a validated intent contract with one OpenAI Responses API call."""
     if client is None or not model:
         raise OpenAIIntentError(AI_DIAGNOSTIC_API_UNAVAILABLE)
+    response = client.responses.create(
+        model=model,
+        input=_request_payload(question, known_alliance_names),
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "ask_dashboard_intent_candidate",
+                "strict": True,
+                "schema": AI_INTENT_CANDIDATE_SCHEMA,
+            }
+        },
+        store=False,
+    )
+    _ensure_complete_response(response)
+    return _decode_candidate(_response_text(response), known_alliance_names)
+
+
+def extract_intent_contract_with_chat_completions(question, known_alliance_names, *, client, model):
+    """Extract a validated intent contract through an OpenAI-compatible gateway.
+
+    Thinking is disabled for this narrow classification task when the gateway
+    supports Qwen chat-template options. The same strict local validation is
+    applied to the returned JSON.
+    """
+    if client is None or not model:
+        raise OpenAIIntentError(AI_DIAGNOSTIC_API_UNAVAILABLE)
+    response = client.chat.completions.create(
+        model=model,
+        messages=_chat_messages(question, known_alliance_names),
+        temperature=0,
+        max_tokens=1200,
+        timeout=60.0,
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+    )
+    return _decode_candidate(_chat_completion_text(response), known_alliance_names)
+
+
+def extract_intent_contract_with_openai(
+    question,
+    known_alliance_names,
+    *,
+    client,
+    model,
+    api_style=None,
+):
+    """Extract an intent contract through the configured OpenAI-compatible API."""
+    if client is None or not model:
+        raise OpenAIIntentError(AI_DIAGNOSTIC_API_UNAVAILABLE)
     try:
-        response = client.responses.create(
+        resolved_style = resolve_ai_api_style(api_style)
+        if resolved_style == AI_API_STYLE_CHAT_COMPLETIONS:
+            return extract_intent_contract_with_chat_completions(
+                question,
+                known_alliance_names,
+                client=client,
+                model=model,
+            )
+        return extract_intent_contract_with_responses(
+            question,
+            known_alliance_names,
+            client=client,
             model=model,
-            input=_request_payload(question, known_alliance_names),
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "ask_dashboard_intent_candidate",
-                    "strict": True,
-                    "schema": AI_INTENT_CANDIDATE_SCHEMA,
-                }
-            },
-            store=False,
         )
-        _ensure_complete_response(response)
-        text = _response_text(response)
-        try:
-            candidate = json.loads(text)
-        except (TypeError, json.JSONDecodeError) as exc:
-            raise OpenAIIntentError(AI_DIAGNOSTIC_API_INVALID_OUTPUT) from exc
-        try:
-            candidate = canonicalize_candidate_alliances(candidate, known_alliance_names)
-            return build_api_intent_contract(candidate)
-        except ValueError as exc:
-            raise OpenAIIntentError(AI_DIAGNOSTIC_API_INVALID_OUTPUT) from exc
     except OpenAIIntentError:
         raise
     except TimeoutError as exc:
