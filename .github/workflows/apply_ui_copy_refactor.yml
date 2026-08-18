@@ -19,6 +19,53 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Align contribution suggestion display labels
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('ui_copy.py')
+          text = path.read_text(encoding='utf-8')
+          if 'QUESTION_TOP_CONTRIBUTOR,' in text:
+              print('Contribution suggestion display labels already aligned.')
+          else:
+              replacements = [
+                  (
+                      '    QUESTION_TOP_CONTRIBUTORS,\n',
+                      '    QUESTION_TOP_CONTRIBUTOR,\n    QUESTION_TOP_CONTRIBUTORS,\n',
+                  ),
+                  (
+                      '        "suggest_top_contributors": "Which players contributed most to the selected alliance?",\n',
+                      '        "suggest_top_contributor": "Who contributed the most under the current filters?",\n        "suggest_top_contributors": "Show the top contributors within each selected alliance.",\n',
+                  ),
+                  (
+                      '        "suggest_top_contributors": "¿Qué jugadores contribuyeron más a la alianza seleccionada?",\n',
+                      '        "suggest_top_contributor": "¿Quién contribuyó más con los filtros actuales?",\n        "suggest_top_contributors": "Mostrar los principales contribuyentes de cada alianza seleccionada.",\n',
+                  ),
+                  (
+                      '        "suggest_top_contributors": "Quels joueurs ont le plus contribué à l’alliance sélectionnée ?",\n',
+                      '        "suggest_top_contributor": "Qui a le plus contribué avec les filtres actuels ?",\n        "suggest_top_contributors": "Afficher les principaux contributeurs de chaque alliance sélectionnée.",\n',
+                  ),
+                  (
+                      '        "suggest_top_contributors": "Những người chơi nào đóng góp nhiều nhất cho liên minh đã chọn?",\n',
+                      '        "suggest_top_contributor": "Ai đóng góp nhiều nhất trong phạm vi bộ lọc hiện tại?",\n        "suggest_top_contributors": "Hiển thị những người đóng góp hàng đầu trong từng liên minh đã chọn.",\n',
+                  ),
+                  (
+                      '        "suggest_top_contributors": "Pemain mana yang paling banyak berkontribusi pada aliansi yang dipilih?",\n',
+                      '        "suggest_top_contributor": "Siapa yang berkontribusi paling besar dalam filter saat ini?",\n        "suggest_top_contributors": "Tampilkan kontributor teratas dalam setiap aliansi yang dipilih.",\n',
+                  ),
+                  (
+                      '    QUESTION_TOP_CONTRIBUTORS: "suggest_top_contributors",\n',
+                      '    QUESTION_TOP_CONTRIBUTOR: "suggest_top_contributor",\n    QUESTION_TOP_CONTRIBUTORS: "suggest_top_contributors",\n',
+                  ),
+              ]
+              for old, new in replacements:
+                  count = text.count(old)
+                  if count != 1:
+                      raise RuntimeError(f'ui_copy contribution patch expected 1 match, found {count}: {old!r}')
+                  text = text.replace(old, new, 1)
+              path.write_text(text, encoding='utf-8')
+          PY
       - name: Apply exact-match UI refactor once
         run: |
           if grep -q '^from ui_copy import (' app.py; then
@@ -45,14 +92,14 @@ jobs:
         run: python -m pytest -q
       - name: Check diff whitespace
         run: git diff --check
-      - name: Commit transformed app if needed
+      - name: Commit transformed files if needed
         run: |
-          if git diff --quiet -- app.py; then
-            echo 'No app.py changes to commit.'
+          if git diff --quiet -- app.py ui_copy.py; then
+            echo 'No transformed files to commit.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app.py
+          git add app.py ui_copy.py
           git commit -m 'Integrate localized Ask Dashboard shell [ui-copy-applied]'
           git push origin HEAD:agent/localize-and-distill-ui
