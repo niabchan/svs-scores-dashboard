@@ -842,11 +842,13 @@ def ask_dashboard_dialog():
         ),
     )
 
+    if st.session_state.get("lang", "en") != "en":
+        st.caption(ask_t("custom_question_notice"))
+
     custom_question = ""
     include_full_text = False
 
     if suggested_question == QUESTION_CUSTOM:
-        st.info(ask_t("custom_question_notice"))
         st.caption(ask_t("custom_question_help"))
         custom_question = st.text_area(
             ask_t("enter_question"),
