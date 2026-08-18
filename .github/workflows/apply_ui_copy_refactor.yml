@@ -1,16 +1,16 @@
 name: Apply localized Ask Dashboard refactor
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/localize-and-distill-ui
+      - main
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.event.head_commit.message == 'Run localized Ask Dashboard refactor'
+    if: github.event.pull_request.head.ref == 'agent/localize-and-distill-ui'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,10 +19,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Apply exact-match UI refactor
+      - name: Apply exact-match UI refactor once
         run: |
-          python scripts/apply_ui_copy_refactor.py
-          python - <<'PY'
+          if grep -q '^from ui_copy import (' app.py; then
+            echo 'UI copy refactor already applied.'
+          else
+            python scripts/apply_ui_copy_refactor.py
+            python - <<'PY'
           from pathlib import Path
           path = Path('app.py')
           text = path.read_text(encoding='utf-8')
@@ -33,6 +36,7 @@ jobs:
               raise RuntimeError(f'Vietnamese copy fix: expected 1 match, found {count}')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
           PY
+          fi
       - name: Install test dependencies
         run: python -m pip install -r requirements-test.txt
       - name: Compile Python files
@@ -41,11 +45,11 @@ jobs:
         run: python -m pytest -q
       - name: Check diff whitespace
         run: git diff --check
-      - name: Commit transformed app
+      - name: Commit transformed app if needed
         run: |
           if git diff --quiet -- app.py; then
-            echo 'Expected app.py changes were not produced.' >&2
-            exit 1
+            echo 'No app.py changes to commit.'
+            exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
