@@ -8,6 +8,15 @@ import unicodedata
 import re
 
 from data_loading import coerce_numeric_columns
+from ui_copy import (
+    FEEDBACK_CHOICES,
+    FEEDBACK_REASON_CODES,
+    FEEDBACK_REASON_KEYS,
+    feedback_choice_label,
+    feedback_reason_label,
+    suggested_question_label,
+    ui_text,
+)
 
 # Clean player names for display while preserving letters from all languages.
 def clean_player_name(name):
@@ -408,7 +417,7 @@ TEXT = {
         "choose_players_caption": "Những người chơi được chọn sẽ được đưa vào phân tích. Hãy loại bớt người chơi để xem kết quả thay đổi như thế nào khi không có họ.",
         "select_players_to_include": "Chọn người chơi để đưa vào phân tích",
         "excluded_players_caption": "Những người chơi này hiện đang bị loại khỏi phần phân tích nhóm đã chọn.",
-        "selected_group_impact": "2. Tác động của nhóm đã chọnt",
+        "selected_group_impact": "2. Tác động của nhóm đã chọn",
         "selected_group_impact_caption": "Phần này hiển thị kết quả tổng hợp của những người chơi đã chọn trong phạm vi các bộ lọc hiện tại trên thanh bên.",
         "positive_negative_net_contribution": "3. Đóng góp ròng dương và âm",
         "score_balance_caption": "Biểu đồ bên trái hiển thị tất cả người chơi thuộc phạm vi các bộ lọc hiện tại trên thanh bên. Biểu đồ bên phải chỉ hiển thị những người chơi được chọn sau khi loại người chơi.",
@@ -518,6 +527,9 @@ TEXT = {
 def t(key):
     lang = st.session_state.get("lang", "en")
     return TEXT.get(lang, {}).get(key, TEXT["en"].get(key, key))
+
+def ask_t(key, **values):
+    return ui_text(st.session_state.get("lang", "en"), key, **values)
 
 # Page settings
 st.set_page_config(
@@ -785,10 +797,13 @@ def get_current_selected_player_names(data):
     ]
 
 
-@st.dialog("Ask the Dashboard", width="large")
+@st.dialog(ask_t("ask_dashboard"), width="large")
 def ask_dashboard_dialog():
-    alliance_scope = ", ".join(map(str, selected_alliances)) or "None"
-    status_scope = ", ".join(map(str, selected_net_status)) or "None"
+    alliance_scope = ", ".join(map(str, selected_alliances)) or ask_t("none")
+    status_scope = (
+        ", ".join(translate_net_status(status) for status in selected_net_status)
+        or ask_t("none")
+    )
     current_selected_players = get_current_selected_player_names(
         filtered_df
     )
@@ -799,63 +814,49 @@ def ask_dashboard_dialog():
     )
 
     st.caption(
-        f"Current scope — SVS: {selected_svs} | "
-        f"Alliances: {alliance_scope} | Net status: {status_scope} | "
-        f"Included players: {len(current_selected_players)}/"
-        f"{total_players_in_scope}"
+        ask_t(
+            "current_scope",
+            svs=selected_svs,
+            alliances=alliance_scope,
+            net_status=status_scope,
+            included=len(current_selected_players),
+            total=total_players_in_scope,
+        )
     )
 
     analytics_config = _analytics_config()
-    with st.expander("Preview analytics & privacy", expanded=False):
+    with st.expander(ask_t("analytics_privacy"), expanded=False):
         if analytics_config["mode"] == "local":
-            st.caption(
-                "Anonymous routing metadata and feedback are saved to a best-effort local file "
-                "on this running preview instance. It can persist across browser sessions, but "
-                "may reset when Streamlit restarts or redeploys."
-            )
+            st.caption(ask_t("analytics_local"))
         elif analytics_config["mode"] == "webhook":
-            st.caption(
-                "Anonymous routing metadata and feedback are sent to the configured HTTPS "
-                "analytics endpoint."
-            )
+            st.caption(ask_t("analytics_webhook"))
         else:
-            st.caption("Persistent preview analytics are currently disabled.")
-        st.caption(
-            "A custom question and its generated answer are saved only when you explicitly opt in. "
-            "The analytics event does not collect IP addresses, browser fingerprints, API keys, "
-            "score rows, or selected player names."
-        )
+            st.caption(ask_t("analytics_disabled"))
+        st.caption(ask_t("analytics_opt_in"))
 
     suggested_question = st.selectbox(
-        "Choose a suggested question",
+        ask_t("choose_suggested_question"),
         SUGGESTED_QUESTIONS,
+        format_func=lambda value: suggested_question_label(
+            st.session_state.get("lang", "en"), value
+        ),
     )
 
     custom_question = ""
     include_full_text = False
 
     if suggested_question == QUESTION_CUSTOM:
-        st.caption(
-            "Need help? Start with “help” to learn how to use the dashboard, "
-            "or ask your question directly. Free-text questions use rule-first routing. Supported "
-            "topics include alliance ranking, player exclusions, negative "
-            "share, top contributors, and total net score without named "
-            "alliances."
-        )
+        st.info(ask_t("custom_question_notice"))
+        st.caption(ask_t("custom_question_help"))
         custom_question = st.text_area(
-            "Enter your question",
-            placeholder=(
-                "Try: Top net score player — or type help"
-            ),
+            ask_t("enter_question"),
+            placeholder=ask_t("question_placeholder"),
         )
 
         include_full_text = st.checkbox(
-            "Allow this custom question and its generated answer to be saved for improving Ask Dashboard",
+            ask_t("allow_save_text"),
             value=False,
-            help=(
-                "When unchecked, only anonymous routing metadata is saved. Avoid entering private "
-                "information even when opting in."
-            ),
+            help=ask_t("allow_save_help"),
         )
 
     question = (
@@ -869,7 +870,7 @@ def ask_dashboard_dialog():
     )
 
     if st.button(
-        "Explain",
+        ask_t("explain"),
         type="primary",
         disabled=not question,
     ):
@@ -953,16 +954,13 @@ def ask_dashboard_dialog():
     last_answer_event_id = st.session_state.get("ask_dashboard_last_answer_event_id")
     pending_answer_event = st.session_state.get("ask_dashboard_pending_answer_event")
     if last_rendered_answer and last_question == question:
-        st.markdown("### Explanation")
+        st.subheader(ask_t("explanation"))
         st.markdown(last_rendered_answer)
 
         if not last_answer_event_id and isinstance(pending_answer_event, dict):
-            st.info(
-                "Feedback is temporarily unavailable because analytics delivery "
-                "for this answer has not been confirmed."
-            )
+            st.info(ask_t("feedback_pending"))
             if st.button(
-                "Retry analytics connection",
+                ask_t("retry_analytics"),
                 key=f"ask_dashboard_retry_answer_{pending_answer_event.get('event_id', 'pending')}",
             ):
                 retry_result = _persist_preview_analytics(pending_answer_event)
@@ -972,60 +970,51 @@ def ask_dashboard_dialog():
                     st.session_state.pop("ask_dashboard_pending_answer_event", None)
                     st.rerun()
                 else:
-                    st.warning(
-                        "Analytics delivery still could not be confirmed. The answer "
-                        "remains available, and retrying the same event is safe."
-                    )
+                    st.warning(ask_t("retry_failed"))
 
         if last_answer_event_id:
             if st.session_state.get("ask_dashboard_feedback_submitted_for") == last_answer_event_id:
-                st.success("Thank you — your feedback was recorded.")
+                st.success(ask_t("feedback_recorded"))
             else:
-                st.markdown("#### Was this answer helpful?")
+                st.markdown(f"#### {ask_t('was_helpful')}")
                 feedback_choice = st.radio(
-                    "Answer quality",
-                    ["Choose…", "Helpful", "Not helpful"],
+                    ask_t("was_helpful"),
+                    FEEDBACK_CHOICES,
+                    format_func=lambda value: feedback_choice_label(
+                        st.session_state.get("lang", "en"), value
+                    ),
                     horizontal=True,
                     label_visibility="collapsed",
                     key=f"ask_dashboard_feedback_choice_{last_answer_event_id}",
                 )
                 feedback_reason = None
-                if feedback_choice == "Not helpful":
-                    reason_label = st.selectbox(
-                        "What went wrong?",
-                        [
-                            "It misunderstood my question",
-                            "The answer was incorrect",
-                            "My question is not supported",
-                            "The answer was unclear",
-                            "Other",
-                        ],
+                if feedback_choice == "not_helpful":
+                    reason_key = st.selectbox(
+                        ask_t("what_went_wrong"),
+                        FEEDBACK_REASON_KEYS,
+                        format_func=lambda value: feedback_reason_label(
+                            st.session_state.get("lang", "en"), value
+                        ),
                         key=f"ask_dashboard_feedback_reason_{last_answer_event_id}",
                     )
-                    feedback_reason = {
-                        "It misunderstood my question": "misunderstood_question",
-                        "The answer was incorrect": "wrong_answer",
-                        "My question is not supported": "unsupported_question",
-                        "The answer was unclear": "unclear_answer",
-                        "Other": "other",
-                    }[reason_label]
-                elif feedback_choice == "Helpful":
+                    feedback_reason = FEEDBACK_REASON_CODES[reason_key]
+                elif feedback_choice == "helpful":
                     feedback_reason = "correct_and_clear"
 
                 feedback_comment = st.text_area(
-                    "Optional comment",
-                    placeholder="Tell us what worked or what you expected. Do not include private information.",
+                    ask_t("optional_comment"),
+                    placeholder=ask_t("comment_placeholder"),
                     key=f"ask_dashboard_feedback_comment_{last_answer_event_id}",
                 )
                 if st.button(
-                    "Submit feedback",
-                    disabled=feedback_choice == "Choose…",
+                    ask_t("submit_feedback"),
+                    disabled=feedback_choice == "choose",
                     key=f"ask_dashboard_feedback_submit_{last_answer_event_id}",
                 ):
                     try:
                         feedback_event = build_feedback_event(
                             last_answer_event_id,
-                            helpful=feedback_choice == "Helpful",
+                            helpful=feedback_choice == "helpful",
                             reason=feedback_reason,
                             comment=feedback_comment.strip() or None,
                             app_version=analytics_config["app_version"],
@@ -1035,9 +1024,9 @@ def ask_dashboard_dialog():
                             st.session_state["ask_dashboard_feedback_submitted_for"] = last_answer_event_id
                             st.rerun()
                         else:
-                            st.warning("Feedback delivery could not be confirmed. You can retry safely; retries for the same answer will not create another feedback record.")
+                            st.warning(ask_t("feedback_delivery_failed"))
                     except Exception:
-                        st.warning("Feedback delivery could not be confirmed. You can retry safely; retries for the same answer will not create another feedback record.")
+                        st.warning(ask_t("feedback_delivery_failed"))
 
     if _truthy_setting("ASK_DASHBOARD_DEBUG_LOG"):
         with st.expander("Developer: Question analysis log", expanded=False):
@@ -1141,7 +1130,7 @@ def ask_dashboard_dialog():
 
 
 
-if st.button("💬 Ask the Dashboard", type="primary"):
+if st.button(f"💬 {ask_t('ask_dashboard')}", type="primary"):
     ask_dashboard_dialog()
 
 
@@ -1158,8 +1147,6 @@ tab_overview, tab_alliance, tab_players, tab_contribution, tab_player_selection 
 
 # Main metrics & scatter plot
 with tab_overview:
-    st.subheader(t("overview"))
-
     # Full-server totals for the selected SVS period only.
     # Alliance and net-status filters do not affect these Overview metrics.
     server_total_players = period_df["player_name"].nunique()
@@ -1252,7 +1239,6 @@ with tab_overview:
 
 ## Alliance Summary ##
 with tab_alliance:
-    st.subheader(t("alliance_summary"))
     st.caption(
         t("alliance_summary_caption")
     )
@@ -1540,7 +1526,6 @@ with tab_players:
 
 ## Contribution by Alliance ##
 with tab_contribution:
-    st.header(t("contribution_insight"))
     st.caption(t("contribution_insight_caption"))
 
     # -----------------------------
@@ -1784,7 +1769,6 @@ with tab_contribution:
 
 ## Contribution by Player ##
 with tab_player_selection:
-    st.header(t("player_selection_insight"))
     st.caption(t("player_selection_insight_caption"))
 
     # Create containers to control display order
