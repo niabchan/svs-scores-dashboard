@@ -146,6 +146,8 @@ TEXT = {
         "score_balance_caption": "The Before Exclusion chart shows all players within the current sidebar filters. The After Exclusion chart shows only the players currently selected for analysis.",
         "before_exclusion": "**Before Exclusion**",
         "after_exclusion": "**After Exclusion**",
+        "no_score_data_before_exclusion": "No positive or negative net score to display for the current filters.",
+        "no_score_data_after_exclusion": "No positive or negative net score to display for the currently selected players.",
         "alliance_impact_selected_players": "4. Alliance Impact of Selected Players",
         "alliance_impact_selected_players_caption": "This section shows how the selected players contribute to each alliance. It shows the full results for an alliance only when all of its players are selected.",
         "no_players_selected_alliance_summary": "No players are selected. Select at least one player to show the alliance summary."
@@ -237,6 +239,8 @@ TEXT = {
         "score_balance_caption": "El gráfico Antes de las exclusiones muestra a todos los jugadores incluidos en los filtros actuales de la barra lateral. El gráfico Después de las exclusiones muestra solo a los jugadores seleccionados actualmente para el análisis.",
         "before_exclusion": "**Antes de las exclusiones**",
         "after_exclusion": "**Después de las exclusiones**",
+        "no_score_data_before_exclusion": "No hay puntuaciones netas positivas ni negativas para mostrar con los filtros actuales.",
+        "no_score_data_after_exclusion": "No hay puntuaciones netas positivas ni negativas que mostrar para los jugadores seleccionados actualmente.",
         "alliance_impact_selected_players": "4. Impacto de los jugadores seleccionados en las alianzas",
         "alliance_impact_selected_players_caption": "Esta sección muestra cómo contribuyen los jugadores seleccionados a cada alianza. Solo muestra los resultados completos de una alianza cuando están seleccionados todos sus jugadores.",
         "no_players_selected_alliance_summary": "No hay jugadores seleccionados. Seleccione al menos un jugador para mostrar el resumen por alianza."
@@ -327,6 +331,8 @@ TEXT = {
         "score_balance_caption": "Le graphique Avant les exclusions montre tous les joueurs correspondant aux filtres actuels de la barre latérale. Le graphique Après les exclusions montre uniquement les joueurs actuellement sélectionnés pour l’analyse.",
         "before_exclusion": "**Avant les exclusions**",
         "after_exclusion": "**Après les exclusions**",
+        "no_score_data_before_exclusion": "Aucun score net positif ou négatif à afficher avec les filtres actuels.",
+        "no_score_data_after_exclusion": "Aucun score net positif ou négatif à afficher pour les joueurs actuellement sélectionnés.",
         "alliance_impact_selected_players": "4. Impact des joueurs sélectionnés sur les alliances",
         "alliance_impact_selected_players_caption": "Cette section montre la contribution des joueurs sélectionnés à chaque alliance. Elle affiche les résultats complets d’une alliance uniquement lorsque tous ses joueurs sont sélectionnés.",
         "no_players_selected_alliance_summary": "Aucun joueur n’est sélectionné. Sélectionnez au moins un joueur pour afficher le résumé par alliance."
@@ -417,6 +423,8 @@ TEXT = {
         "score_balance_caption": "Biểu đồ Trước khi loại người chơi hiển thị tất cả người chơi thuộc phạm vi các bộ lọc hiện tại trên thanh bên. Biểu đồ Sau khi loại người chơi chỉ hiển thị những người chơi hiện được chọn để phân tích.",
         "before_exclusion": "**Trước khi loại người chơi**",
         "after_exclusion": "**Sau khi loại người chơi**",
+        "no_score_data_before_exclusion": "Không có điểm ròng dương hoặc âm để hiển thị với các bộ lọc hiện tại.",
+        "no_score_data_after_exclusion": "Không có điểm ròng dương hoặc âm để hiển thị cho những người chơi hiện được chọn.",
         "alliance_impact_selected_players": "4. Tác động của người chơi được chọn đối với các liên minh",
         "alliance_impact_selected_players_caption": "Phần này cho biết những người chơi được chọn đóng góp như thế nào cho từng liên minh. Kết quả đầy đủ của một liên minh chỉ được hiển thị khi tất cả người chơi của liên minh đó đều được chọn.",
         "no_players_selected_alliance_summary": "Chưa có người chơi nào được chọn. Hãy chọn ít nhất một người chơi để hiển thị phần tóm tắt theo liên minh."
@@ -508,6 +516,8 @@ TEXT = {
         "score_balance_caption": "Grafik Sebelum Pengecualian menampilkan semua pemain yang termasuk dalam filter bilah sisi saat ini. Grafik Setelah Pengecualian hanya menampilkan pemain yang saat ini dipilih untuk analisis.",
         "before_exclusion": "**Sebelum Pengecualian**",
         "after_exclusion": "**Setelah Pengecualian**",
+        "no_score_data_before_exclusion": "Tidak ada poin bersih positif atau negatif untuk ditampilkan dengan filter saat ini.",
+        "no_score_data_after_exclusion": "Tidak ada poin bersih positif atau negatif untuk ditampilkan bagi pemain yang saat ini dipilih.",
         "alliance_impact_selected_players": "4. Dampak Pemain yang Dipilih terhadap Aliansi",
         "alliance_impact_selected_players_caption": "Bagian ini menunjukkan kontribusi pemain yang dipilih terhadap setiap aliansi. Hasil lengkap suatu aliansi hanya ditampilkan apabila semua pemainnya dipilih.",
         "no_players_selected_alliance_summary": "Tidak ada pemain yang dipilih. Pilih setidaknya satu pemain untuk menampilkan ringkasan aliansi."
