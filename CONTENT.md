@@ -22,6 +22,7 @@ Recommended treatment:
 - Keep one short visible sentence only when interpretation is not obvious.
 - Move instructions, examples, and calculation details into a collapsed help expander when they do not need to remain visible.
 - Avoid repeating “current sidebar filters” under every chart; explain scope once and show exceptions locally.
+- When one shared caption already explains two adjacent or stacked charts by their visible names, do not repeat the same scope explanation again under each chart heading.
 
 ### P1 — Translation content and Streamlit presentation are coupled
 
@@ -38,7 +39,7 @@ Recommended treatment:
 
 Player Selection Insight can render the Before Exclusion and After Exclusion charts side by side on wider screens but stack them vertically on mobile. Copy that identifies them as “left” and “right” is therefore inaccurate on narrow viewports.
 
-Recommended treatment: refer to responsive charts and controls by their visible names rather than by screen position. The score-balance caption should identify the **Before Exclusion** and **After Exclusion** charts in every supported locale.
+Recommended treatment: refer to responsive charts and controls by their visible names rather than by screen position. The score-balance caption should identify the **Before Exclusion** and **After Exclusion** charts in every supported locale. Because that shared caption already explains the scope of both charts, the individual Before/After headings should not carry an additional repeated scope caption beneath them.
 
 ### P1 — `Select all` is an intentional exact UI reference
 
@@ -125,7 +126,7 @@ Prefer:
 
 > The Before Exclusion chart shows all players in the current filter scope. The After Exclusion chart shows only the players currently selected for analysis.
 
-Instead of referring to the same charts as left/right or top/bottom.
+Instead of referring to the same charts as left/right or top/bottom, or repeating the same scope explanation underneath each named chart.
 
 ## Implementation order
 
