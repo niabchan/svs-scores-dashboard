@@ -1,0 +1,79 @@
+name: Update responsive chart wording
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  update-copy:
+    if: github.event.pull_request.head.ref == 'agent/localize-and-distill-ui'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/localize-and-distill-ui
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Replace directional chart wording in all locales
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app.py')
+          text = path.read_text(encoding='utf-8')
+
+          replacements = [
+              (
+                  '"score_balance_caption": "The left chart shows all players within the current sidebar filters. The right chart shows only the selected players after exclusions.",',
+                  '"score_balance_caption": "The Before Exclusion chart shows all players within the current sidebar filters. The After Exclusion chart shows only the players currently selected for analysis.",',
+                  'en',
+              ),
+              (
+                  '"score_balance_caption": "El gráfico de la izquierda muestra a todos los jugadores incluidos en los filtros actuales de la barra lateral. El gráfico de la derecha muestra únicamente a los jugadores seleccionados después de las exclusiones.",',
+                  '"score_balance_caption": "El gráfico Antes de las exclusiones muestra a todos los jugadores incluidos en los filtros actuales de la barra lateral. El gráfico Después de las exclusiones muestra solo a los jugadores seleccionados actualmente para el análisis.",',
+                  'es',
+              ),
+              (
+                  '"score_balance_caption": "Le graphique de gauche montre tous les joueurs correspondant aux filtres actuels de la barre latérale. Le graphique de droite montre uniquement les joueurs sélectionnés après les exclusions.",',
+                  '"score_balance_caption": "Le graphique Avant les exclusions montre tous les joueurs correspondant aux filtres actuels de la barre latérale. Le graphique Après les exclusions montre uniquement les joueurs actuellement sélectionnés pour l’analyse.",',
+                  'fr',
+              ),
+              (
+                  '"score_balance_caption": "Biểu đồ bên trái hiển thị tất cả người chơi thuộc phạm vi các bộ lọc hiện tại trên thanh bên. Biểu đồ bên phải chỉ hiển thị những người chơi được chọn sau khi loại người chơi.",',
+                  '"score_balance_caption": "Biểu đồ Trước khi loại người chơi hiển thị tất cả người chơi thuộc phạm vi các bộ lọc hiện tại trên thanh bên. Biểu đồ Sau khi loại người chơi chỉ hiển thị những người chơi hiện được chọn để phân tích.",',
+                  'vi',
+              ),
+              (
+                  '"score_balance_caption": "Grafik sebelah kiri menampilkan semua pemain yang termasuk dalam filter bilah sisi saat ini. Grafik sebelah kanan hanya menampilkan pemain yang dipilih setelah pengecualian.",',
+                  '"score_balance_caption": "Grafik Sebelum Pengecualian menampilkan semua pemain yang termasuk dalam filter bilah sisi saat ini. Grafik Setelah Pengecualian hanya menampilkan pemain yang saat ini dipilih untuk analisis.",',
+                  'id',
+              ),
+          ]
+
+          for old, new, locale in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f'{locale}: expected exactly one old caption, found {count}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-test.txt
+      - name: Compile and test
+        run: |
+          python -m py_compile app.py ask_dashboard.py openai_intent.py data_loading.py usage_analytics.py ui_copy.py test_ui_copy.py test_ui_copy_shell.py
+          python -m pytest -q
+          git diff --check
+      - name: Commit responsive wording
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.py
+          git commit -m 'Use device-neutral exclusion chart wording'
+          git push origin HEAD:agent/localize-and-distill-ui
