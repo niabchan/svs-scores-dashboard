@@ -145,9 +145,7 @@ TEXT = {
         "positive_negative_net_contribution": "3. Positive and Negative Net Contribution",
         "score_balance_caption": "The Before Exclusion chart shows all players within the current sidebar filters. The After Exclusion chart shows only the players currently selected for analysis.",
         "before_exclusion": "**Before Exclusion**",
-        "before_exclusion_caption": "All players within the current sidebar filters.",
         "after_exclusion": "**After Exclusion**",
-        "after_exclusion_caption": "Only selected players. Excluded players are not included in this chart.",
         "alliance_impact_selected_players": "4. Alliance Impact of Selected Players",
         "alliance_impact_selected_players_caption": "This section shows how the selected players contribute to each alliance. It shows the full results for an alliance only when all of its players are selected.",
         "no_players_selected_alliance_summary": "No players are selected. Select at least one player to show the alliance summary."
@@ -238,9 +236,7 @@ TEXT = {
         "positive_negative_net_contribution": "3. Contribuciones netas positivas y negativas",
         "score_balance_caption": "El gráfico Antes de las exclusiones muestra a todos los jugadores incluidos en los filtros actuales de la barra lateral. El gráfico Después de las exclusiones muestra solo a los jugadores seleccionados actualmente para el análisis.",
         "before_exclusion": "**Antes de las exclusiones**",
-        "before_exclusion_caption": "Todos los jugadores incluidos en los filtros actuales de la barra lateral.",
         "after_exclusion": "**Después de las exclusiones**",
-        "after_exclusion_caption": "Solo se muestran los jugadores seleccionados. Los jugadores excluidos no se incluyen en este gráfico.",
         "alliance_impact_selected_players": "4. Impacto de los jugadores seleccionados en las alianzas",
         "alliance_impact_selected_players_caption": "Esta sección muestra cómo contribuyen los jugadores seleccionados a cada alianza. Solo muestra los resultados completos de una alianza cuando están seleccionados todos sus jugadores.",
         "no_players_selected_alliance_summary": "No hay jugadores seleccionados. Seleccione al menos un jugador para mostrar el resumen por alianza."
@@ -330,9 +326,7 @@ TEXT = {
         "positive_negative_net_contribution": "3. Contributions nettes positives et négatives",
         "score_balance_caption": "Le graphique Avant les exclusions montre tous les joueurs correspondant aux filtres actuels de la barre latérale. Le graphique Après les exclusions montre uniquement les joueurs actuellement sélectionnés pour l’analyse.",
         "before_exclusion": "**Avant les exclusions**",
-        "before_exclusion_caption": "Tous les joueurs correspondant aux filtres actuels de la barre latérale.",
         "after_exclusion": "**Après les exclusions**",
-        "after_exclusion_caption": "Seuls les joueurs sélectionnés sont affichés. Les joueurs exclus ne sont pas inclus dans ce graphique.",
         "alliance_impact_selected_players": "4. Impact des joueurs sélectionnés sur les alliances",
         "alliance_impact_selected_players_caption": "Cette section montre la contribution des joueurs sélectionnés à chaque alliance. Elle affiche les résultats complets d’une alliance uniquement lorsque tous ses joueurs sont sélectionnés.",
         "no_players_selected_alliance_summary": "Aucun joueur n’est sélectionné. Sélectionnez au moins un joueur pour afficher le résumé par alliance."
@@ -422,9 +416,7 @@ TEXT = {
         "positive_negative_net_contribution": "3. Đóng góp ròng dương và âm",
         "score_balance_caption": "Biểu đồ Trước khi loại người chơi hiển thị tất cả người chơi thuộc phạm vi các bộ lọc hiện tại trên thanh bên. Biểu đồ Sau khi loại người chơi chỉ hiển thị những người chơi hiện được chọn để phân tích.",
         "before_exclusion": "**Trước khi loại người chơi**",
-        "before_exclusion_caption": "Tất cả người chơi thuộc phạm vi các bộ lọc hiện tại trên thanh bên.",
         "after_exclusion": "**Sau khi loại người chơi**",
-        "after_exclusion_caption": "Chỉ hiển thị những người chơi được chọn. Những người chơi bị loại không được đưa vào biểu đồ này.",
         "alliance_impact_selected_players": "4. Tác động của người chơi được chọn đối với các liên minh",
         "alliance_impact_selected_players_caption": "Phần này cho biết những người chơi được chọn đóng góp như thế nào cho từng liên minh. Kết quả đầy đủ của một liên minh chỉ được hiển thị khi tất cả người chơi của liên minh đó đều được chọn.",
         "no_players_selected_alliance_summary": "Chưa có người chơi nào được chọn. Hãy chọn ít nhất một người chơi để hiển thị phần tóm tắt theo liên minh."
@@ -515,9 +507,7 @@ TEXT = {
         "positive_negative_net_contribution": "3. Kontribusi Bersih Positif dan Negatif",
         "score_balance_caption": "Grafik Sebelum Pengecualian menampilkan semua pemain yang termasuk dalam filter bilah sisi saat ini. Grafik Setelah Pengecualian hanya menampilkan pemain yang saat ini dipilih untuk analisis.",
         "before_exclusion": "**Sebelum Pengecualian**",
-        "before_exclusion_caption": "Semua pemain yang termasuk dalam filter bilah sisi saat ini.",
         "after_exclusion": "**Setelah Pengecualian**",
-        "after_exclusion_caption": "Hanya pemain yang dipilih. Pemain yang dikecualikan tidak disertakan dalam grafik ini.",
         "alliance_impact_selected_players": "4. Dampak Pemain yang Dipilih terhadap Aliansi",
         "alliance_impact_selected_players_caption": "Bagian ini menunjukkan kontribusi pemain yang dipilih terhadap setiap aliansi. Hasil lengkap suatu aliansi hanya ditampilkan apabila semua pemainnya dipilih.",
         "no_players_selected_alliance_summary": "Tidak ada pemain yang dipilih. Pilih setidaknya satu pemain untuk menampilkan ringkasan aliansi."
@@ -1931,7 +1921,6 @@ with tab_player_selection:
 
         with col_before:
             st.markdown(t("before_exclusion"))
-            st.caption(t("before_exclusion_caption"))
 
             if before_ratio_df["score"].sum() > 0:
                 fig_before_ratio = px.pie(
@@ -1979,7 +1968,6 @@ with tab_player_selection:
 
         with col_after:
             st.markdown(t("after_exclusion"))
-            st.caption(t("after_exclusion_caption"))
 
             if after_ratio_df["score"].sum() > 0:
                 fig_after_ratio = px.pie(
