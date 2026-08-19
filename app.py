@@ -1132,7 +1132,14 @@ def ask_dashboard_dialog():
 
 
 
-if st.button(f"💬 {ask_t('ask_dashboard')}", type="primary"):
+ask_dashboard_action = st.container(
+    horizontal=True,
+    horizontal_alignment="right",
+)
+if ask_dashboard_action.button(
+    f"💬 {ask_t('ask_dashboard')}",
+    type="primary",
+):
     ask_dashboard_dialog()
 
 
