@@ -1149,6 +1149,8 @@ tab_overview, tab_alliance, tab_players, tab_contribution, tab_player_selection 
 
 # Main metrics & scatter plot
 with tab_overview:
+    st.subheader(t("overview"))
+
     # Full-server totals for the selected SVS period only.
     # Alliance and net-status filters do not affect these Overview metrics.
     server_total_players = period_df["player_name"].nunique()
@@ -1241,6 +1243,7 @@ with tab_overview:
 
 ## Alliance Summary ##
 with tab_alliance:
+    st.subheader(t("alliance_summary"))
     st.caption(
         t("alliance_summary_caption")
     )
@@ -1528,6 +1531,7 @@ with tab_players:
 
 ## Contribution by Alliance ##
 with tab_contribution:
+    st.header(t("contribution_insight"))
     st.caption(t("contribution_insight_caption"))
 
     # -----------------------------
@@ -1771,6 +1775,7 @@ with tab_contribution:
 
 ## Contribution by Player ##
 with tab_player_selection:
+    st.header(t("player_selection_insight"))
     st.caption(t("player_selection_insight_caption"))
 
     # Create containers to control display order
