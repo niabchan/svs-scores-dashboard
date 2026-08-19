@@ -1,0 +1,63 @@
+name: Remove redundant exclusion captions
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  update-copy:
+    if: github.event.pull_request.head.ref == 'agent/localize-and-distill-ui'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/localize-and-distill-ui
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Remove repeated per-chart captions in all locales
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app.py')
+          text = path.read_text(encoding='utf-8')
+
+          ui_lines = [
+              '            st.caption(t("before_exclusion_caption"))\n',
+              '            st.caption(t("after_exclusion_caption"))\n',
+          ]
+          for line in ui_lines:
+              count = text.count(line)
+              if count != 1:
+                  raise RuntimeError(f'expected exactly one UI caption call, found {count}: {line!r}')
+              text = text.replace(line, '', 1)
+
+          keys = ["before_exclusion_caption", "after_exclusion_caption"]
+          for key in keys:
+              lines = [line for line in text.splitlines(keepends=True) if f'"{key}":' in line]
+              if len(lines) != 5:
+                  raise RuntimeError(f'{key}: expected 5 locale entries, found {len(lines)}')
+              for line in lines:
+                  text = text.replace(line, '', 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-test.txt
+      - name: Compile and test
+        run: |
+          python -m py_compile app.py ask_dashboard.py openai_intent.py data_loading.py usage_analytics.py ui_copy.py test_ui_copy.py test_ui_copy_shell.py
+          python -m pytest -q
+          git diff --check
+      - name: Commit streamlined chart copy
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.py
+          git commit -m 'Remove redundant exclusion chart captions'
+          git push origin HEAD:agent/localize-and-distill-ui
