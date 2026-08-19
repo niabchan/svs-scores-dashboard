@@ -16,12 +16,13 @@ Do not show all three layers at once unless the user is in a dedicated help or r
 
 ## Layout rules
 
-- Do not repeat a tab label immediately as an identical subheader.
+- Repeated wording can serve different structural roles. Keep a tab label and matching in-page heading when the heading materially improves orientation in a long dashboard view.
 - Prefer one meaningful heading over a heading, subtitle, caption, and reading guide that restate each other.
 - Keep filters together and make their scope explicit without repeatedly describing the same scope below every chart.
 - Keep exact data tables available even when charts or summaries are present.
 - Use progressive disclosure for explanations that returning users no longer need.
 - Avoid nested containers and card-like decoration unless they communicate grouping or state.
+- Do not identify responsive components by screen position such as “left”, “right”, “above”, or “below” when their position can change across viewport sizes. Refer to charts and controls by their visible names instead.
 
 ## Copy rules
 
@@ -55,7 +56,7 @@ Do not let a visual-review tool alter metric definitions, calculations, routing 
 ## Current design risks
 
 - The main translation dictionary and presentation logic are coupled in `app.py`.
-- Several tabs repeat their tab name as a subheader.
+- Repeated headings should be judged by structural role, not removed mechanically; rendered review has shown that some matching tab/in-page headings improve orientation.
 - Contribution views use overlapping captions and reading guides.
 - Ask Dashboard controls, privacy copy, feedback controls, suggested questions, and generated explanations are currently English-first inside a multilingual shell.
 - Some translation values contain Markdown heading or bold syntax, coupling content to presentation.
