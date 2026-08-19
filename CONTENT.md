@@ -22,7 +22,7 @@ Recommended treatment:
 - Keep one short visible sentence only when interpretation is not obvious.
 - Move instructions, examples, and calculation details into a collapsed help expander when they do not need to remain visible.
 - Avoid repeating “current sidebar filters” under every chart; explain scope once and show exceptions locally.
-- When one shared caption already explains two adjacent or stacked charts by their visible names, do not repeat the same scope explanation again under each chart heading.
+- When one shared caption already explains named child charts, keep the chart headings but remove repeated per-chart scope captions.
 
 ### P1 — Translation content and Streamlit presentation are coupled
 
@@ -34,12 +34,13 @@ Recommended treatment:
 - Route every user-visible string through one translation function.
 - Keep canonical English text as the source of meaning.
 - Add automated key and placeholder checks before moving files.
+- Treat code-like translation keys appearing in the UI as a localization defect; literal `t("...")` references should resolve to canonical English keys before locale parity is checked.
 
 ### P1 — Responsive copy must not depend on left/right placement
 
 Player Selection Insight can render the Before Exclusion and After Exclusion charts side by side on wider screens but stack them vertically on mobile. Copy that identifies them as “left” and “right” is therefore inaccurate on narrow viewports.
 
-Recommended treatment: refer to responsive charts and controls by their visible names rather than by screen position. The score-balance caption should identify the **Before Exclusion** and **After Exclusion** charts in every supported locale. Because that shared caption already explains the scope of both charts, the individual Before/After headings should not carry an additional repeated scope caption beneath them.
+Recommended treatment: refer to responsive charts and controls by their visible names rather than by screen position. The score-balance caption should identify the **Before Exclusion** and **After Exclusion** charts in every supported locale.
 
 ### P1 — `Select all` is an intentional exact UI reference
 
@@ -126,11 +127,13 @@ Prefer:
 
 > The Before Exclusion chart shows all players in the current filter scope. The After Exclusion chart shows only the players currently selected for analysis.
 
-Instead of referring to the same charts as left/right or top/bottom, or repeating the same scope explanation underneath each named chart.
+Instead of referring to the same charts as left/right or top/bottom.
+
+For empty states, describe the actual condition that prevents a visual from rendering rather than exposing an internal key or claiming broadly that no data exists. For the exclusion pie charts, distinguish the current filter scope from the currently selected players.
 
 ## Implementation order
 
-1. Maintain key-parity and placeholder tests.
+1. Maintain key-parity, literal translation-reference, and placeholder tests.
 2. Maintain product, design, content, and localization context files.
 3. Inventory hard-coded user-visible strings in `app.py` and `ask_dashboard.py`.
 4. Localize the Ask Dashboard shell and state its question-language limitation.
