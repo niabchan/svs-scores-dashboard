@@ -1017,12 +1017,18 @@ def ask_dashboard_dialog():
 
         st.session_state["ask_dashboard_last_question"] = question
         st.session_state["ask_dashboard_last_rendered_answer"] = rendered_answer
+        st.session_state["ask_dashboard_last_answer_locale"] = st.session_state.get("lang", "en")
 
     last_question = st.session_state.get("ask_dashboard_last_question")
     last_rendered_answer = st.session_state.get("ask_dashboard_last_rendered_answer")
+    last_answer_locale = st.session_state.get("ask_dashboard_last_answer_locale")
     last_answer_event_id = st.session_state.get("ask_dashboard_last_answer_event_id")
     pending_answer_event = st.session_state.get("ask_dashboard_pending_answer_event")
-    if last_rendered_answer and last_question == question:
+    if (
+        last_rendered_answer
+        and last_question == question
+        and last_answer_locale == st.session_state.get("lang", "en")
+    ):
         st.subheader(ask_t("explanation"))
         st.markdown(last_rendered_answer)
 
