@@ -34,6 +34,7 @@ DEFAULT_LOCAL_PATH = "/tmp/svs_scores_dashboard_analytics.jsonl"
 MAX_QUESTION_CHARS = 1_500
 MAX_ANSWER_CHARS = 8_000
 MAX_COMMENT_CHARS = 1_500
+MAX_MODEL_CHARS = 200
 MAX_EVENT_BYTES = 64_000
 _LOCAL_WRITE_LOCK = Lock()
 
@@ -137,6 +138,7 @@ def build_answer_event(
     *,
     question_kind: str,
     ui_language: str,
+    ai_routing_model: str | None = None,
     suggested_question: str | None = None,
     include_full_text: bool = False,
     selected_alliance_count: int = 0,
@@ -163,6 +165,7 @@ def build_answer_event(
     )
     question = str(parameters.get("question", ""))
     allow_text = bool(include_full_text and question_kind == "custom")
+    ai_attempted = bool(diagnostics.get("ai_attempted", False))
 
     event = {
         "schema_version": ANALYTICS_SCHEMA_VERSION,
@@ -191,8 +194,13 @@ def build_answer_event(
         "routing_source": routing.get("source", "rule"),
         "match_status": routing.get("match_status"),
         "routing_confidence": routing.get("confidence"),
-        "ai_attempted": bool(diagnostics.get("ai_attempted", False)),
+        "ai_attempted": ai_attempted,
         "ai_succeeded": bool(diagnostics.get("ai_succeeded", False)),
+        "ai_routing_model": (
+            _bounded_text(ai_routing_model, MAX_MODEL_CHARS)
+            if ai_attempted and ai_routing_model
+            else None
+        ),
         "ai_diagnostic_code": diagnostics.get("diagnostic_code"),
         "mentioned_alliance_count": len(parameters.get("mentioned_alliances", []) or []),
         "selected_alliance_count": int(selected_alliance_count),
@@ -401,6 +409,13 @@ def summarize_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         "ai_attempt_count": ai_attempt_count,
         "ai_success_count": ai_success_count,
         "ai_success_rate": rate(ai_success_count, ai_attempt_count),
+        "ai_routing_models": dict(
+            Counter(
+                str(event.get("ai_routing_model"))
+                for event in answers
+                if event.get("ai_attempted") and event.get("ai_routing_model")
+            )
+        ),
         "full_text_opt_in_count": sum(bool(event.get("full_text_consent")) for event in answers),
         "intents": dict(Counter(str(event.get("intent")) for event in answers)),
         "languages": dict(Counter(str(event.get("ui_language")) for event in answers)),

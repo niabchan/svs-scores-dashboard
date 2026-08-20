@@ -17,12 +17,12 @@ ASK_DASHBOARD_AI_ROUTING = "true"
 ASK_DASHBOARD_AI_API_STYLE = "chat_completions"
 OPENAI_API_KEY = "<your private 9arm API key>"
 OPENAI_BASE_URL = "https://gateway.9arm.co/v1"
-OPENAI_INTENT_MODEL = "qwen3.6-35b-a3b"
+OPENAI_INTENT_MODEL = "qwen3.8-27b-fp8"
 ```
 
 Do not commit the real API key to GitHub and do not paste it into issues, pull requests, logs, screenshots, or test files.
 
-The project keeps the existing `OPENAI_*` variable names because it uses the OpenAI Python SDK as a client for an OpenAI-compatible endpoint. The provider is selected by the base URL and API style.
+The project keeps the existing `OPENAI_*` variable names because it uses the OpenAI Python SDK as a client for an OpenAI-compatible endpoint. The provider is selected by the base URL and API style. `OPENAI_INTENT_MODEL` is intentionally a runtime setting, so a provider model replacement normally requires changing the secret value rather than changing application code.
 
 ## Test sequence
 

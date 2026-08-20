@@ -61,6 +61,7 @@ const ANSWER_FEEDBACK_HEADERS = [
   "match_status",
   "ai_attempted",
   "ai_succeeded",
+  "ai_routing_model",
   "feedback_timestamp_utc",
   "helpful",
   "feedback_reason",
@@ -225,6 +226,7 @@ function rebuildDerivedSheets_(spreadsheet) {
       answer.match_status,
       answer.ai_attempted,
       answer.ai_succeeded,
+      answer.ai_routing_model,
       feedbackEvent.timestamp_utc,
       feedbackEvent.helpful,
       feedbackEvent.reason,
@@ -310,6 +312,12 @@ function writeSummary_(spreadsheet, answers, feedback, feedbackByAnswer) {
     [],
     ["App version", "Count"],
     ...counterRows_(answers, "app_version"),
+    [],
+    ["AI routing model", "Count"],
+    ...counterRows_(
+      answers.filter((event) => event.ai_attempted === true),
+      "ai_routing_model"
+    ),
     [],
     ["Feedback reason", "Count"],
     ...counterRows_(effectiveFeedback, "reason"),
