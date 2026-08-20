@@ -34,6 +34,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add app.py test_table_layout.py
+          git add -u table_layout.py scripts/revert_adaptive_table_sizing.py
           git commit -m 'Restore balanced summary table widths'
           git push origin HEAD:agent/localize-and-distill-ui
