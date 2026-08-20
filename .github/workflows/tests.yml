@@ -6,18 +6,49 @@ on:
     branches:
       - ask-dashboard-wip
       - work
+      - agent/ai-routing-model-observability
+
+permissions:
+  contents: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: agent/ai-routing-model-observability
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install test dependencies
         run: python -m pip install -r requirements-test.txt
+      - name: Apply AI routing model observability patch
+        run: python scripts/apply_ai_routing_model_observability.py
       - name: Compile Python files
-        run: python -m py_compile app.py ask_dashboard.py openai_intent.py data_loading.py usage_analytics.py ui_copy.py test_ask_dashboard.py test_alliance_score_overview.py test_data_loading.py test_table_layout.py test_usage_analytics.py test_ui_copy.py test_ui_copy_shell.py
+        run: python -m py_compile app.py ask_dashboard.py openai_intent.py data_loading.py usage_analytics.py ui_copy.py test_ask_dashboard.py test_alliance_score_overview.py test_ai_model_observability.py test_data_loading.py test_table_layout.py test_usage_analytics.py test_ui_copy.py test_ui_copy_shell.py
       - name: Run tests
-        run: python -m pytest -q
+        run: |
+          python -m pytest -q
+          git diff --check
+      - name: Verify no RawEvents header migration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('analytics/google_apps_script/Code.gs').read_text(encoding='utf-8')
+          raw = source.split('const RAW_HEADERS = [', 1)[1].split('];', 1)[0]
+          derived = source.split('const ANSWER_FEEDBACK_HEADERS = [', 1)[1].split('];', 1)[0]
+          assert '"ai_routing_model"' not in raw
+          assert '"ai_routing_model"' in derived
+          PY
+      - name: Commit observability implementation
+        run: |
+          if git diff --quiet -- app.py usage_analytics.py analytics/google_apps_script/Code.gs NINEARM_API_SETUP.md GOOGLE_SHEETS_ANALYTICS_SETUP.md; then
+            echo "Observability patch already applied."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.py usage_analytics.py analytics/google_apps_script/Code.gs NINEARM_API_SETUP.md GOOGLE_SHEETS_ANALYTICS_SETUP.md
+          git commit -m 'Record AI routing model in analytics'
+          git push origin HEAD:agent/ai-routing-model-observability
