@@ -983,6 +983,7 @@ def ask_dashboard_dialog():
                 rendered_answer,
                 question_kind=question_kind,
                 ui_language=st.session_state.get("lang", "en"),
+                ai_routing_model=_secret_or_env("OPENAI_INTENT_MODEL"),
                 suggested_question=(
                     suggested_question if question_kind == "suggested" else None
                 ),

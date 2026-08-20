@@ -7,8 +7,8 @@ This setup is for the separate Streamlit preview app. It replaces best-effort lo
 The Apps Script receiver maintains four sheets:
 
 - `RawEvents` — append-only source of truth;
-- `AnswerFeedbackView` — one answer per row joined with its latest feedback;
-- `Summary` — answer, feedback, helpful, unsupported, AI, language, intent, and version metrics;
+- `AnswerFeedbackView` — one answer per row joined with its latest feedback, including the AI routing model when an AI routing attempt occurred;
+- `Summary` — answer, feedback, helpful, unsupported, AI, AI routing model, language, intent, and version metrics;
 - `OptInTextReview` — only answer rows where the user explicitly allowed full question and answer text to be saved.
 
 Do not manually edit `RawEvents`. The other three sheets are rebuilt from it whenever a new event arrives.
@@ -98,4 +98,4 @@ The older `ASK_DASHBOARD_ANALYTICS_TOKEN` bearer-token setting remains optional 
 
 ## Updating the Apps Script later
 
-Editing `Code.gs` does not automatically update an existing deployment. After code changes, create a new deployment version or edit the deployment to use the new version, then verify the Web App URL used in Streamlit Secrets.
+Editing `Code.gs` does not automatically update an existing deployment. After code changes, create a new deployment version or edit the deployment to use the new version, then verify the Web App URL used in Streamlit Secrets. The AI routing model field is added only to rebuildable derived views and `raw_event_json`; the existing `RawEvents` header layout is intentionally unchanged, so current analytics rows remain compatible.
