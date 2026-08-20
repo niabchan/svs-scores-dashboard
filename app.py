@@ -973,7 +973,10 @@ def ask_dashboard_dialog():
         else:
             st.session_state.pop("ask_dashboard_logging_error", None)
 
-        rendered_answer = render_dashboard_answer(answer)
+        rendered_answer = render_dashboard_answer(
+            answer,
+            locale=st.session_state.get("lang", "en"),
+        )
         st.session_state.pop("ask_dashboard_pending_answer_event", None)
         st.session_state.pop("ask_dashboard_last_answer_event_id", None)
         answer_event = None
