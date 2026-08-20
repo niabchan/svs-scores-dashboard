@@ -23,7 +23,7 @@ def estimate_column_width(
     pixels_per_unit=8,
     padding=32,
 ):
-    """Estimate a bounded pixel width from both the header and displayed cell values."""
+    """Estimate a bounded pixel width from the header and displayed cell values."""
     if min_width <= 0 or max_width < min_width:
         raise ValueError("column width bounds must satisfy 0 < min_width <= max_width")
 
