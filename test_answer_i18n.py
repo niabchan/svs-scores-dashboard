@@ -157,3 +157,10 @@ def test_rounded_score_notice_is_localized():
 def test_app_passes_selected_ui_locale_to_answer_renderer():
     source = open("app.py", encoding="utf-8").read()
     assert "render_dashboard_answer(\n            answer,\n            locale=st.session_state.get(\"lang\", \"en\"),\n        )" in source
+
+
+def test_app_does_not_show_a_stale_answer_after_ui_locale_changes():
+    source = open("app.py", encoding="utf-8").read()
+    assert 'st.session_state["ask_dashboard_last_answer_locale"] = st.session_state.get("lang", "en")' in source
+    assert 'last_answer_locale = st.session_state.get("ask_dashboard_last_answer_locale")' in source
+    assert 'and last_answer_locale == st.session_state.get("lang", "en")' in source
