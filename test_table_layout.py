@@ -1,33 +1,26 @@
 from pathlib import Path
 
-from table_layout import estimate_column_width, text_width_units
-
 
 APP_PATH = Path(__file__).with_name("app.py")
 
 
-def test_column_width_accounts_for_localized_header_length():
-    short = estimate_column_width("Players", ["12"])
-    long = estimate_column_width("Nombre de jugadores positivos", ["12"])
-    assert long > short
-
-
-def test_column_width_accounts_for_formatted_cell_values():
-    short = estimate_column_width("Score", ["12"])
-    long = estimate_column_width("Score", ["12,345,678,901"])
-    assert long > short
-
-
-def test_column_width_is_bounded():
-    assert estimate_column_width("A", [], min_width=96, max_width=240) == 96
-    assert estimate_column_width("X" * 200, [], min_width=96, max_width=240) == 240
-
-
-def test_wide_unicode_characters_receive_more_width_units():
-    assert text_width_units("玩家") > text_width_units("AB")
+def _summary_config_source():
+    source = APP_PATH.read_text(encoding="utf-8")
+    start = source.index("def alliance_summary_column_config():")
+    end = source.index("# Fuction: translate net status filter", start)
+    return source, source[start:end]
 
 
 def test_alliance_summary_tables_share_one_column_config_builder():
-    source = APP_PATH.read_text(encoding="utf-8")
-    assert "def alliance_summary_column_config(data):" in source
-    assert source.count("column_config=alliance_summary_column_config(") == 2
+    source, _ = _summary_config_source()
+    assert source.count("column_config=alliance_summary_column_config()") == 2
+
+
+def test_summary_config_preserves_balanced_baseline_widths():
+    source, config = _summary_config_source()
+    assert "estimate_column_width" not in source
+    assert 'width="small"' in config
+    assert config.count('width="small"') == 2
+    assert config.count('width="medium"') == 1
+    assert "width=88" not in config
+    assert "width=280" not in config

@@ -8,7 +8,6 @@ import unicodedata
 import re
 
 from data_loading import coerce_numeric_columns
-from table_layout import estimate_column_width
 from ui_copy import (
     FEEDBACK_CHOICES,
     FEEDBACK_REASON_CODES,
@@ -580,65 +579,42 @@ def make_alliance_summary(data):
     return alliance_summary
 
 
-def alliance_summary_column_config(data):
-    """Build one localized, content-aware column configuration for summary tables."""
-    def displayed_values(column, formatter=str):
-        if column not in data.columns:
-            return []
-        return [
-            formatter(value)
-            for value in data[column].dropna().tolist()
-        ]
-
-    def width(column, header, formatter=str, *, max_width=280):
-        return estimate_column_width(
-            header,
-            displayed_values(column, formatter),
-            max_width=max_width,
-        )
-
-    integer = lambda value: f"{int(value):d}"
-    score = lambda value: f"{float(value):,.0f}"
-
+def alliance_summary_column_config():
+    """Build the shared localized column configuration for alliance summary tables."""
     return {
         "alliance": st.column_config.TextColumn(
             t("alliance"),
-            width=width("alliance", t("alliance"), max_width=220),
+            width="small",
         ),
         "players": st.column_config.NumberColumn(
             t("players"),
             format="%d",
-            width=width("players", t("players"), integer),
+            width="small",
         ),
         "positive_players": st.column_config.NumberColumn(
             t("positive_players"),
             format="%d",
-            width=width("positive_players", t("positive_players"), integer),
         ),
         "negative_players": st.column_config.NumberColumn(
             t("negative_players"),
             format="%d",
-            width=width("negative_players", t("negative_players"), integer),
         ),
         "total_score_gained": st.column_config.NumberColumn(
             t("score_gained"),
             format="%,.0f",
-            width=width("total_score_gained", t("score_gained"), score),
         ),
         "total_score_lost": st.column_config.NumberColumn(
             t("score_lost"),
             format="%,.0f",
-            width=width("total_score_lost", t("score_lost"), score),
         ),
         "total_net_score": st.column_config.NumberColumn(
             t("net_score"),
             format="%,.0f",
-            width=width("total_net_score", t("net_score"), score),
         ),
         "average_net_score": st.column_config.NumberColumn(
             t("net_per_player"),
             format="%,.0f",
-            width=width("average_net_score", t("net_per_player"), score),
+            width="medium",
         ),
     }
 
@@ -1326,9 +1302,7 @@ with tab_alliance:
         alliance_summary,
         use_container_width=True,
         hide_index=True,
-        column_config=alliance_summary_column_config(
-            alliance_summary
-        )
+        column_config=alliance_summary_column_config()
     )
 
     st.divider()
@@ -2145,7 +2119,5 @@ with tab_player_selection:
                 selected_alliance_summary,
                 use_container_width=True,
                 hide_index=True,
-                column_config=alliance_summary_column_config(
-                    selected_alliance_summary
-                )
+                column_config=alliance_summary_column_config()
             )
