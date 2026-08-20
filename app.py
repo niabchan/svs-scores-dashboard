@@ -8,6 +8,15 @@ import unicodedata
 import re
 
 from data_loading import coerce_numeric_columns
+from ui_copy import (
+    FEEDBACK_CHOICES,
+    FEEDBACK_REASON_CODES,
+    FEEDBACK_REASON_KEYS,
+    feedback_choice_label,
+    feedback_reason_label,
+    suggested_question_label,
+    ui_text,
+)
 
 # Clean player names for display while preserving letters from all languages.
 def clean_player_name(name):
@@ -101,6 +110,10 @@ TEXT = {
         "negative": "Negative",
         "positive_players": "Positive Players",
         "negative_players": "Negative Players",
+        "table_positive_players": "Positive Players",
+        "table_negative_players": "Negative Players",
+        "table_positive_players_help": "Players with a positive net score.",
+        "table_negative_players_help": "Players with a negative net score.",
         "total_net_score": "Total Net Score",
         "net_per_player": "Net per Player",
         "ranking_chart_guide":
@@ -134,11 +147,11 @@ TEXT = {
         "selected_group_impact": "2. Selected Group Impact",
         "selected_group_impact_caption": "This section shows the combined results of the selected players within the current sidebar filters.",
         "positive_negative_net_contribution": "3. Positive and Negative Net Contribution",
-        "score_balance_caption": "The left chart shows all players within the current sidebar filters. The right chart shows only the selected players after exclusions.",
+        "score_balance_caption": "The Before Exclusion chart shows all players within the current sidebar filters. The After Exclusion chart shows only the players currently selected for analysis.",
         "before_exclusion": "**Before Exclusion**",
-        "before_exclusion_caption": "All players within the current sidebar filters.",
         "after_exclusion": "**After Exclusion**",
-        "after_exclusion_caption": "Only selected players. Excluded players are not included in this chart.",
+        "no_score_data_before_exclusion": "No positive or negative net score to display for the current filters.",
+        "no_score_data_after_exclusion": "No positive or negative net score to display for the currently selected players.",
         "alliance_impact_selected_players": "4. Alliance Impact of Selected Players",
         "alliance_impact_selected_players_caption": "This section shows how the selected players contribute to each alliance. It shows the full results for an alliance only when all of its players are selected.",
         "no_players_selected_alliance_summary": "No players are selected. Select at least one player to show the alliance summary."
@@ -194,6 +207,10 @@ TEXT = {
         "negative": "Negativo",
         "positive_players": "Jugadores positivos",
         "negative_players": "Jugadores negativos",
+        "table_positive_players": "Jugadores positivos",
+        "table_negative_players": "Jugadores negativos",
+        "table_positive_players_help": "Jugadores con puntuación neta positiva.",
+        "table_negative_players_help": "Jugadores con puntuación neta negativa.",
         "total_net_score": "Puntuación neta total",
         "net_per_player": "Puntuación neta por jugador",
         "ranking_chart_guide":
@@ -227,11 +244,11 @@ TEXT = {
         "selected_group_impact": "2. Impacto del grupo seleccionado",
         "selected_group_impact_caption": "Esta sección muestra los resultados combinados de los jugadores seleccionados según los filtros actuales de la barra lateral.",
         "positive_negative_net_contribution": "3. Contribuciones netas positivas y negativas",
-        "score_balance_caption": "El gráfico de la izquierda muestra a todos los jugadores incluidos en los filtros actuales de la barra lateral. El gráfico de la derecha muestra únicamente a los jugadores seleccionados después de las exclusiones.",
+        "score_balance_caption": "El gráfico Antes de las exclusiones muestra a todos los jugadores incluidos en los filtros actuales de la barra lateral. El gráfico Después de las exclusiones muestra solo a los jugadores seleccionados actualmente para el análisis.",
         "before_exclusion": "**Antes de las exclusiones**",
-        "before_exclusion_caption": "Todos los jugadores incluidos en los filtros actuales de la barra lateral.",
         "after_exclusion": "**Después de las exclusiones**",
-        "after_exclusion_caption": "Solo se muestran los jugadores seleccionados. Los jugadores excluidos no se incluyen en este gráfico.",
+        "no_score_data_before_exclusion": "No hay puntuaciones netas positivas ni negativas para mostrar con los filtros actuales.",
+        "no_score_data_after_exclusion": "No hay puntuaciones netas positivas ni negativas que mostrar para los jugadores seleccionados actualmente.",
         "alliance_impact_selected_players": "4. Impacto de los jugadores seleccionados en las alianzas",
         "alliance_impact_selected_players_caption": "Esta sección muestra cómo contribuyen los jugadores seleccionados a cada alianza. Solo muestra los resultados completos de una alianza cuando están seleccionados todos sus jugadores.",
         "no_players_selected_alliance_summary": "No hay jugadores seleccionados. Seleccione al menos un jugador para mostrar el resumen por alianza."
@@ -287,6 +304,10 @@ TEXT = {
         "negative": "Négatif",
         "positive_players": "Joueurs positifs",
         "negative_players": "Joueurs négatifs",
+        "table_positive_players": "Joueurs positifs",
+        "table_negative_players": "Joueurs négatifs",
+        "table_positive_players_help": "Joueurs ayant un score net positif.",
+        "table_negative_players_help": "Joueurs ayant un score net négatif.",
         "total_net_score": "Score net total",
         "net_per_player": "Score net par joueur",
         "ranking_chart_guide":
@@ -319,11 +340,11 @@ TEXT = {
         "selected_group_impact": "2. Impact du groupe sélectionné",
         "selected_group_impact_caption": "Cette section présente les résultats combinés des joueurs sélectionnés selon les filtres actuels de la barre latérale.",
         "positive_negative_net_contribution": "3. Contributions nettes positives et négatives",
-        "score_balance_caption": "Le graphique de gauche montre tous les joueurs correspondant aux filtres actuels de la barre latérale. Le graphique de droite montre uniquement les joueurs sélectionnés après les exclusions.",
+        "score_balance_caption": "Le graphique Avant les exclusions montre tous les joueurs correspondant aux filtres actuels de la barre latérale. Le graphique Après les exclusions montre uniquement les joueurs actuellement sélectionnés pour l’analyse.",
         "before_exclusion": "**Avant les exclusions**",
-        "before_exclusion_caption": "Tous les joueurs correspondant aux filtres actuels de la barre latérale.",
         "after_exclusion": "**Après les exclusions**",
-        "after_exclusion_caption": "Seuls les joueurs sélectionnés sont affichés. Les joueurs exclus ne sont pas inclus dans ce graphique.",
+        "no_score_data_before_exclusion": "Aucun score net positif ou négatif à afficher avec les filtres actuels.",
+        "no_score_data_after_exclusion": "Aucun score net positif ou négatif à afficher pour les joueurs actuellement sélectionnés.",
         "alliance_impact_selected_players": "4. Impact des joueurs sélectionnés sur les alliances",
         "alliance_impact_selected_players_caption": "Cette section montre la contribution des joueurs sélectionnés à chaque alliance. Elle affiche les résultats complets d’une alliance uniquement lorsque tous ses joueurs sont sélectionnés.",
         "no_players_selected_alliance_summary": "Aucun joueur n’est sélectionné. Sélectionnez au moins un joueur pour afficher le résumé par alliance."
@@ -379,6 +400,10 @@ TEXT = {
         "negative": "Âm",
         "positive_players": "Người chơi dương",
         "negative_players": "Người chơi âm",
+        "table_positive_players": "Người chơi dương",
+        "table_negative_players": "Người chơi âm",
+        "table_positive_players_help": "Người chơi có điểm ròng dương.",
+        "table_negative_players_help": "Người chơi có điểm ròng âm.",
         "total_net_score": "Tổng điểm ròng",
         "net_per_player": "Điểm ròng mỗi người chơi",
         "ranking_chart_guide":
@@ -408,14 +433,14 @@ TEXT = {
         "choose_players_caption": "Những người chơi được chọn sẽ được đưa vào phân tích. Hãy loại bớt người chơi để xem kết quả thay đổi như thế nào khi không có họ.",
         "select_players_to_include": "Chọn người chơi để đưa vào phân tích",
         "excluded_players_caption": "Những người chơi này hiện đang bị loại khỏi phần phân tích nhóm đã chọn.",
-        "selected_group_impact": "2. Tác động của nhóm đã chọnt",
+        "selected_group_impact": "2. Tác động của nhóm đã chọn",
         "selected_group_impact_caption": "Phần này hiển thị kết quả tổng hợp của những người chơi đã chọn trong phạm vi các bộ lọc hiện tại trên thanh bên.",
         "positive_negative_net_contribution": "3. Đóng góp ròng dương và âm",
-        "score_balance_caption": "Biểu đồ bên trái hiển thị tất cả người chơi thuộc phạm vi các bộ lọc hiện tại trên thanh bên. Biểu đồ bên phải chỉ hiển thị những người chơi được chọn sau khi loại người chơi.",
+        "score_balance_caption": "Biểu đồ Trước khi loại người chơi hiển thị tất cả người chơi thuộc phạm vi các bộ lọc hiện tại trên thanh bên. Biểu đồ Sau khi loại người chơi chỉ hiển thị những người chơi hiện được chọn để phân tích.",
         "before_exclusion": "**Trước khi loại người chơi**",
-        "before_exclusion_caption": "Tất cả người chơi thuộc phạm vi các bộ lọc hiện tại trên thanh bên.",
         "after_exclusion": "**Sau khi loại người chơi**",
-        "after_exclusion_caption": "Chỉ hiển thị những người chơi được chọn. Những người chơi bị loại không được đưa vào biểu đồ này.",
+        "no_score_data_before_exclusion": "Không có điểm ròng dương hoặc âm để hiển thị với các bộ lọc hiện tại.",
+        "no_score_data_after_exclusion": "Không có điểm ròng dương hoặc âm để hiển thị cho những người chơi hiện được chọn.",
         "alliance_impact_selected_players": "4. Tác động của người chơi được chọn đối với các liên minh",
         "alliance_impact_selected_players_caption": "Phần này cho biết những người chơi được chọn đóng góp như thế nào cho từng liên minh. Kết quả đầy đủ của một liên minh chỉ được hiển thị khi tất cả người chơi của liên minh đó đều được chọn.",
         "no_players_selected_alliance_summary": "Chưa có người chơi nào được chọn. Hãy chọn ít nhất một người chơi để hiển thị phần tóm tắt theo liên minh."
@@ -471,6 +496,10 @@ TEXT = {
         "negative": "Negatif",
         "positive_players": "Pemain dengan Poin Bersih Positif",
         "negative_players": "Pemain dengan Poin Bersih Negatif",
+        "table_positive_players": "Pemain Positif",
+        "table_negative_players": "Pemain Negatif",
+        "table_positive_players_help": "Pemain dengan poin bersih positif.",
+        "table_negative_players_help": "Pemain dengan poin bersih negatif.",
         "total_net_score": "Total Poin Bersih",
         "net_per_player": "Poin Bersih per Pemain",
         "ranking_chart_guide":
@@ -504,11 +533,11 @@ TEXT = {
         "selected_group_impact": "2. Dampak Kelompok yang Dipilih",
         "selected_group_impact_caption": "Bagian ini menampilkan hasil gabungan dari para pemain yang dipilih berdasarkan filter bilah sisi saat ini.",
         "positive_negative_net_contribution": "3. Kontribusi Bersih Positif dan Negatif",
-        "score_balance_caption": "Grafik sebelah kiri menampilkan semua pemain yang termasuk dalam filter bilah sisi saat ini. Grafik sebelah kanan hanya menampilkan pemain yang dipilih setelah pengecualian.",
+        "score_balance_caption": "Grafik Sebelum Pengecualian menampilkan semua pemain yang termasuk dalam filter bilah sisi saat ini. Grafik Setelah Pengecualian hanya menampilkan pemain yang saat ini dipilih untuk analisis.",
         "before_exclusion": "**Sebelum Pengecualian**",
-        "before_exclusion_caption": "Semua pemain yang termasuk dalam filter bilah sisi saat ini.",
         "after_exclusion": "**Setelah Pengecualian**",
-        "after_exclusion_caption": "Hanya pemain yang dipilih. Pemain yang dikecualikan tidak disertakan dalam grafik ini.",
+        "no_score_data_before_exclusion": "Tidak ada poin bersih positif atau negatif untuk ditampilkan dengan filter saat ini.",
+        "no_score_data_after_exclusion": "Tidak ada poin bersih positif atau negatif untuk ditampilkan bagi pemain yang saat ini dipilih.",
         "alliance_impact_selected_players": "4. Dampak Pemain yang Dipilih terhadap Aliansi",
         "alliance_impact_selected_players_caption": "Bagian ini menunjukkan kontribusi pemain yang dipilih terhadap setiap aliansi. Hasil lengkap suatu aliansi hanya ditampilkan apabila semua pemainnya dipilih.",
         "no_players_selected_alliance_summary": "Tidak ada pemain yang dipilih. Pilih setidaknya satu pemain untuk menampilkan ringkasan aliansi."
@@ -518,6 +547,9 @@ TEXT = {
 def t(key):
     lang = st.session_state.get("lang", "en")
     return TEXT.get(lang, {}).get(key, TEXT["en"].get(key, key))
+
+def ask_t(key, **values):
+    return ui_text(st.session_state.get("lang", "en"), key, **values)
 
 # Page settings
 st.set_page_config(
@@ -565,6 +597,49 @@ def make_alliance_summary(data):
     )
 
     return alliance_summary
+
+
+def alliance_summary_column_config():
+    """Build the shared localized column configuration for alliance summary tables."""
+    return {
+        "alliance": st.column_config.TextColumn(
+            t("alliance"),
+            width="small",
+        ),
+        "players": st.column_config.NumberColumn(
+            t("players"),
+            format="%d",
+            width="small",
+        ),
+        "positive_players": st.column_config.NumberColumn(
+            t("table_positive_players"),
+            help=t("table_positive_players_help"),
+            format="%d",
+        ),
+        "negative_players": st.column_config.NumberColumn(
+            t("table_negative_players"),
+            help=t("table_negative_players_help"),
+            format="%d",
+        ),
+        "total_score_gained": st.column_config.NumberColumn(
+            t("score_gained"),
+            format="%,.0f",
+        ),
+        "total_score_lost": st.column_config.NumberColumn(
+            t("score_lost"),
+            format="%,.0f",
+        ),
+        "total_net_score": st.column_config.NumberColumn(
+            t("net_score"),
+            format="%,.0f",
+        ),
+        "average_net_score": st.column_config.NumberColumn(
+            t("net_per_player"),
+            format="%,.0f",
+            width="medium",
+        ),
+    }
+
 
 # Fuction: translate net status filter
 def translate_net_status(status):
@@ -785,10 +860,13 @@ def get_current_selected_player_names(data):
     ]
 
 
-@st.dialog("Ask the Dashboard", width="large")
+@st.dialog(ask_t("ask_dashboard"), width="large")
 def ask_dashboard_dialog():
-    alliance_scope = ", ".join(map(str, selected_alliances)) or "None"
-    status_scope = ", ".join(map(str, selected_net_status)) or "None"
+    alliance_scope = ", ".join(map(str, selected_alliances)) or ask_t("none")
+    status_scope = (
+        ", ".join(translate_net_status(status) for status in selected_net_status)
+        or ask_t("none")
+    )
     current_selected_players = get_current_selected_player_names(
         filtered_df
     )
@@ -799,63 +877,51 @@ def ask_dashboard_dialog():
     )
 
     st.caption(
-        f"Current scope — SVS: {selected_svs} | "
-        f"Alliances: {alliance_scope} | Net status: {status_scope} | "
-        f"Included players: {len(current_selected_players)}/"
-        f"{total_players_in_scope}"
+        ask_t(
+            "current_scope",
+            svs=selected_svs,
+            alliances=alliance_scope,
+            net_status=status_scope,
+            included=len(current_selected_players),
+            total=total_players_in_scope,
+        )
     )
 
     analytics_config = _analytics_config()
-    with st.expander("Preview analytics & privacy", expanded=False):
+    with st.expander(ask_t("analytics_privacy"), expanded=False):
         if analytics_config["mode"] == "local":
-            st.caption(
-                "Anonymous routing metadata and feedback are saved to a best-effort local file "
-                "on this running preview instance. It can persist across browser sessions, but "
-                "may reset when Streamlit restarts or redeploys."
-            )
+            st.caption(ask_t("analytics_local"))
         elif analytics_config["mode"] == "webhook":
-            st.caption(
-                "Anonymous routing metadata and feedback are sent to the configured HTTPS "
-                "analytics endpoint."
-            )
+            st.caption(ask_t("analytics_webhook"))
         else:
-            st.caption("Persistent preview analytics are currently disabled.")
-        st.caption(
-            "A custom question and its generated answer are saved only when you explicitly opt in. "
-            "The analytics event does not collect IP addresses, browser fingerprints, API keys, "
-            "score rows, or selected player names."
-        )
+            st.caption(ask_t("analytics_disabled"))
+        st.caption(ask_t("analytics_opt_in"))
 
     suggested_question = st.selectbox(
-        "Choose a suggested question",
+        ask_t("choose_suggested_question"),
         SUGGESTED_QUESTIONS,
+        format_func=lambda value: suggested_question_label(
+            st.session_state.get("lang", "en"), value
+        ),
     )
+
+    if st.session_state.get("lang", "en") != "en":
+        st.caption(ask_t("custom_question_notice"))
 
     custom_question = ""
     include_full_text = False
 
     if suggested_question == QUESTION_CUSTOM:
-        st.caption(
-            "Need help? Start with “help” to learn how to use the dashboard, "
-            "or ask your question directly. Free-text questions use rule-first routing. Supported "
-            "topics include alliance ranking, player exclusions, negative "
-            "share, top contributors, and total net score without named "
-            "alliances."
-        )
+        st.caption(ask_t("custom_question_help"))
         custom_question = st.text_area(
-            "Enter your question",
-            placeholder=(
-                "Try: Top net score player — or type help"
-            ),
+            ask_t("enter_question"),
+            placeholder=ask_t("question_placeholder"),
         )
 
         include_full_text = st.checkbox(
-            "Allow this custom question and its generated answer to be saved for improving Ask Dashboard",
+            ask_t("allow_save_text"),
             value=False,
-            help=(
-                "When unchecked, only anonymous routing metadata is saved. Avoid entering private "
-                "information even when opting in."
-            ),
+            help=ask_t("allow_save_help"),
         )
 
     question = (
@@ -869,7 +935,7 @@ def ask_dashboard_dialog():
     )
 
     if st.button(
-        "Explain",
+        ask_t("explain"),
         type="primary",
         disabled=not question,
     ):
@@ -953,16 +1019,13 @@ def ask_dashboard_dialog():
     last_answer_event_id = st.session_state.get("ask_dashboard_last_answer_event_id")
     pending_answer_event = st.session_state.get("ask_dashboard_pending_answer_event")
     if last_rendered_answer and last_question == question:
-        st.markdown("### Explanation")
+        st.subheader(ask_t("explanation"))
         st.markdown(last_rendered_answer)
 
         if not last_answer_event_id and isinstance(pending_answer_event, dict):
-            st.info(
-                "Feedback is temporarily unavailable because analytics delivery "
-                "for this answer has not been confirmed."
-            )
+            st.info(ask_t("feedback_pending"))
             if st.button(
-                "Retry analytics connection",
+                ask_t("retry_analytics"),
                 key=f"ask_dashboard_retry_answer_{pending_answer_event.get('event_id', 'pending')}",
             ):
                 retry_result = _persist_preview_analytics(pending_answer_event)
@@ -972,60 +1035,51 @@ def ask_dashboard_dialog():
                     st.session_state.pop("ask_dashboard_pending_answer_event", None)
                     st.rerun()
                 else:
-                    st.warning(
-                        "Analytics delivery still could not be confirmed. The answer "
-                        "remains available, and retrying the same event is safe."
-                    )
+                    st.warning(ask_t("retry_failed"))
 
         if last_answer_event_id:
             if st.session_state.get("ask_dashboard_feedback_submitted_for") == last_answer_event_id:
-                st.success("Thank you — your feedback was recorded.")
+                st.success(ask_t("feedback_recorded"))
             else:
-                st.markdown("#### Was this answer helpful?")
+                st.markdown(f"#### {ask_t('was_helpful')}")
                 feedback_choice = st.radio(
-                    "Answer quality",
-                    ["Choose…", "Helpful", "Not helpful"],
+                    ask_t("was_helpful"),
+                    FEEDBACK_CHOICES,
+                    format_func=lambda value: feedback_choice_label(
+                        st.session_state.get("lang", "en"), value
+                    ),
                     horizontal=True,
                     label_visibility="collapsed",
                     key=f"ask_dashboard_feedback_choice_{last_answer_event_id}",
                 )
                 feedback_reason = None
-                if feedback_choice == "Not helpful":
-                    reason_label = st.selectbox(
-                        "What went wrong?",
-                        [
-                            "It misunderstood my question",
-                            "The answer was incorrect",
-                            "My question is not supported",
-                            "The answer was unclear",
-                            "Other",
-                        ],
+                if feedback_choice == "not_helpful":
+                    reason_key = st.selectbox(
+                        ask_t("what_went_wrong"),
+                        FEEDBACK_REASON_KEYS,
+                        format_func=lambda value: feedback_reason_label(
+                            st.session_state.get("lang", "en"), value
+                        ),
                         key=f"ask_dashboard_feedback_reason_{last_answer_event_id}",
                     )
-                    feedback_reason = {
-                        "It misunderstood my question": "misunderstood_question",
-                        "The answer was incorrect": "wrong_answer",
-                        "My question is not supported": "unsupported_question",
-                        "The answer was unclear": "unclear_answer",
-                        "Other": "other",
-                    }[reason_label]
-                elif feedback_choice == "Helpful":
+                    feedback_reason = FEEDBACK_REASON_CODES[reason_key]
+                elif feedback_choice == "helpful":
                     feedback_reason = "correct_and_clear"
 
                 feedback_comment = st.text_area(
-                    "Optional comment",
-                    placeholder="Tell us what worked or what you expected. Do not include private information.",
+                    ask_t("optional_comment"),
+                    placeholder=ask_t("comment_placeholder"),
                     key=f"ask_dashboard_feedback_comment_{last_answer_event_id}",
                 )
                 if st.button(
-                    "Submit feedback",
-                    disabled=feedback_choice == "Choose…",
+                    ask_t("submit_feedback"),
+                    disabled=feedback_choice == "choose",
                     key=f"ask_dashboard_feedback_submit_{last_answer_event_id}",
                 ):
                     try:
                         feedback_event = build_feedback_event(
                             last_answer_event_id,
-                            helpful=feedback_choice == "Helpful",
+                            helpful=feedback_choice == "helpful",
                             reason=feedback_reason,
                             comment=feedback_comment.strip() or None,
                             app_version=analytics_config["app_version"],
@@ -1035,9 +1089,9 @@ def ask_dashboard_dialog():
                             st.session_state["ask_dashboard_feedback_submitted_for"] = last_answer_event_id
                             st.rerun()
                         else:
-                            st.warning("Feedback delivery could not be confirmed. You can retry safely; retries for the same answer will not create another feedback record.")
+                            st.warning(ask_t("feedback_delivery_failed"))
                     except Exception:
-                        st.warning("Feedback delivery could not be confirmed. You can retry safely; retries for the same answer will not create another feedback record.")
+                        st.warning(ask_t("feedback_delivery_failed"))
 
     if _truthy_setting("ASK_DASHBOARD_DEBUG_LOG"):
         with st.expander("Developer: Question analysis log", expanded=False):
@@ -1141,7 +1195,14 @@ def ask_dashboard_dialog():
 
 
 
-if st.button("💬 Ask the Dashboard", type="primary"):
+ask_dashboard_action = st.container(
+    horizontal=True,
+    horizontal_alignment="right",
+)
+if ask_dashboard_action.button(
+    f"💬 {ask_t('ask_dashboard')}",
+    type="primary",
+):
     ask_dashboard_dialog()
 
 
@@ -1263,16 +1324,7 @@ with tab_alliance:
         alliance_summary,
         use_container_width=True,
         hide_index=True,
-        column_config={
-            "alliance": st.column_config.TextColumn(t("alliance"), width="small"),
-            "players": st.column_config.NumberColumn(t("players"), format="%d", width="small"),
-            "positive_players": st.column_config.NumberColumn(t("positive_players"), format="%d"),
-            "negative_players": st.column_config.NumberColumn(t("negative_players"), format="%d"),
-            "total_score_gained": st.column_config.NumberColumn(t("score_gained"), format="%,.0f"),
-            "total_score_lost": st.column_config.NumberColumn(t("score_lost"), format="%,.0f"),
-            "total_net_score": st.column_config.NumberColumn(t("net_score"), format="%,.0f"),
-            "average_net_score": st.column_config.NumberColumn(t("net_per_player"), format="%,.0f", width="medium"),
-        }
+        column_config=alliance_summary_column_config()
     )
 
     st.divider()
@@ -1940,7 +1992,6 @@ with tab_player_selection:
 
         with col_before:
             st.markdown(t("before_exclusion"))
-            st.caption(t("before_exclusion_caption"))
 
             if before_ratio_df["score"].sum() > 0:
                 fig_before_ratio = px.pie(
@@ -1988,7 +2039,6 @@ with tab_player_selection:
 
         with col_after:
             st.markdown(t("after_exclusion"))
-            st.caption(t("after_exclusion_caption"))
 
             if after_ratio_df["score"].sum() > 0:
                 fig_after_ratio = px.pie(
@@ -2091,14 +2141,5 @@ with tab_player_selection:
                 selected_alliance_summary,
                 use_container_width=True,
                 hide_index=True,
-                column_config={
-                    "alliance": st.column_config.TextColumn(t("alliance")),
-                    "players": st.column_config.NumberColumn(t("players"), format="%d"),
-                    "positive_players": st.column_config.NumberColumn(t("positive_players"), format="%d"),
-                    "negative_players": st.column_config.NumberColumn(t("negative_players"), format="%d"),
-                    "total_score_gained": st.column_config.NumberColumn(t("score_gained"), format="%,.0f"),
-                    "total_score_lost": st.column_config.NumberColumn(t("score_lost"), format="%,.0f"),
-                    "total_net_score": st.column_config.NumberColumn(t("net_score"), format="%,.0f"),
-                    "average_net_score": st.column_config.NumberColumn(t("net_per_player"), format="%,.0f"),
-                }
+                column_config=alliance_summary_column_config()
             )
