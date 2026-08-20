@@ -1,4 +1,4 @@
-"""Small, framework-independent helpers for responsive table column sizing."""
+"""Small, framework-independent helpers for adaptive table column sizing."""
 
 import unicodedata
 
