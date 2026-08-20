@@ -110,6 +110,10 @@ TEXT = {
         "negative": "Negative",
         "positive_players": "Positive Players",
         "negative_players": "Negative Players",
+        "table_positive_players": "Positive Players",
+        "table_negative_players": "Negative Players",
+        "table_positive_players_help": "Players with a positive net score.",
+        "table_negative_players_help": "Players with a negative net score.",
         "total_net_score": "Total Net Score",
         "net_per_player": "Net per Player",
         "ranking_chart_guide":
@@ -203,6 +207,10 @@ TEXT = {
         "negative": "Negativo",
         "positive_players": "Jugadores positivos",
         "negative_players": "Jugadores negativos",
+        "table_positive_players": "Jugadores positivos",
+        "table_negative_players": "Jugadores negativos",
+        "table_positive_players_help": "Jugadores con puntuación neta positiva.",
+        "table_negative_players_help": "Jugadores con puntuación neta negativa.",
         "total_net_score": "Puntuación neta total",
         "net_per_player": "Puntuación neta por jugador",
         "ranking_chart_guide":
@@ -296,6 +304,10 @@ TEXT = {
         "negative": "Négatif",
         "positive_players": "Joueurs positifs",
         "negative_players": "Joueurs négatifs",
+        "table_positive_players": "Joueurs positifs",
+        "table_negative_players": "Joueurs négatifs",
+        "table_positive_players_help": "Joueurs ayant un score net positif.",
+        "table_negative_players_help": "Joueurs ayant un score net négatif.",
         "total_net_score": "Score net total",
         "net_per_player": "Score net par joueur",
         "ranking_chart_guide":
@@ -388,6 +400,10 @@ TEXT = {
         "negative": "Âm",
         "positive_players": "Người chơi dương",
         "negative_players": "Người chơi âm",
+        "table_positive_players": "Người chơi dương",
+        "table_negative_players": "Người chơi âm",
+        "table_positive_players_help": "Người chơi có điểm ròng dương.",
+        "table_negative_players_help": "Người chơi có điểm ròng âm.",
         "total_net_score": "Tổng điểm ròng",
         "net_per_player": "Điểm ròng mỗi người chơi",
         "ranking_chart_guide":
@@ -480,6 +496,10 @@ TEXT = {
         "negative": "Negatif",
         "positive_players": "Pemain dengan Poin Bersih Positif",
         "negative_players": "Pemain dengan Poin Bersih Negatif",
+        "table_positive_players": "Pemain Positif",
+        "table_negative_players": "Pemain Negatif",
+        "table_positive_players_help": "Pemain dengan poin bersih positif.",
+        "table_negative_players_help": "Pemain dengan poin bersih negatif.",
         "total_net_score": "Total Poin Bersih",
         "net_per_player": "Poin Bersih per Pemain",
         "ranking_chart_guide":
@@ -592,11 +612,13 @@ def alliance_summary_column_config():
             width="small",
         ),
         "positive_players": st.column_config.NumberColumn(
-            t("positive_players"),
+            t("table_positive_players"),
+            help=t("table_positive_players_help"),
             format="%d",
         ),
         "negative_players": st.column_config.NumberColumn(
-            t("negative_players"),
+            t("table_negative_players"),
+            help=t("table_negative_players_help"),
             format="%d",
         ),
         "total_score_gained": st.column_config.NumberColumn(
