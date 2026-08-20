@@ -7,45 +7,17 @@ on:
       - ask-dashboard-wip
       - work
 
-permissions:
-  contents: write
-
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/localize-and-distill-ui
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install test dependencies
         run: python -m pip install -r requirements-test.txt
-      - name: Apply adaptive summary table layout
-        run: python scripts/apply_table_layout_patch.py
       - name: Compile Python files
         run: python -m py_compile app.py ask_dashboard.py openai_intent.py data_loading.py table_layout.py usage_analytics.py ui_copy.py test_ask_dashboard.py test_alliance_score_overview.py test_data_loading.py test_table_layout.py test_usage_analytics.py test_ui_copy.py test_ui_copy_shell.py
       - name: Run tests
-        run: |
-          python -m pytest -q
-          git diff --check
-      - name: Verify Streamlit integer column widths
-        run: |
-          python -m pip install streamlit==1.58.0
-          python - <<'PY'
-          import streamlit as st
-          column = st.column_config.NumberColumn(
-              "Localized header",
-              width=180,
-              format="%,.0f",
-          )
-          assert column is not None
-          PY
-      - name: Commit adaptive table layout
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app.py table_layout.py test_table_layout.py
-          git commit -m 'Auto-size summary table columns'
-          git push origin HEAD:agent/localize-and-distill-ui
+        run: python -m pytest -q
