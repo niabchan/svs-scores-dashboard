@@ -1,5 +1,7 @@
 from pathlib import Path
 
+# One-time exact patch for the English top-contributor Markdown spacing.
+
 
 def replace_once(text, old, new, label):
     count = text.count(old)
