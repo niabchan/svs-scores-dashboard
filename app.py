@@ -912,7 +912,6 @@ def ask_dashboard_dialog():
     include_full_text = False
 
     if suggested_question == QUESTION_CUSTOM:
-        st.caption(ask_t("custom_question_help"))
         custom_question = st.text_area(
             ask_t("enter_question"),
             placeholder=ask_t("question_placeholder"),

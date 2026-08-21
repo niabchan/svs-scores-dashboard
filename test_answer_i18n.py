@@ -9,7 +9,7 @@ from ask_dashboard._answer_i18n import (
     validate_answer_copy_parity,
 )
 from ask_dashboard._routing import SUPPORTED_DASHBOARD_INTENTS
-from ui_copy import SUPPORTED_UI_LOCALES
+from ui_copy import ASK_UI_TEXT, SUPPORTED_UI_LOCALES
 
 
 def _alliance_positive_answer(period="2026-W28"):
@@ -255,3 +255,71 @@ def test_indonesian_cleanup_avoids_translation_calques():
     assert "dampak negatif mentah" not in ANSWER_TEXT["id"]["negative_reason_increase_down"].casefold()
     assert ANSWER_TEXT["id"]["negative_formula"].startswith("Persentase dampak negatif")
     assert "kontribusi positif terbesar" in ANSWER_TEXT["id"]["player_positive_single"]
+
+
+def test_custom_question_guidance_is_consolidated_into_placeholder():
+    for locale in SUPPORTED_UI_LOCALES:
+        assert "custom_question_help" not in ASK_UI_TEXT[locale]
+        placeholder = ASK_UI_TEXT[locale]["question_placeholder"]
+        assert "help" in placeholder.casefold()
+        assert len(placeholder) > 60
+
+    source = open("app.py", encoding="utf-8").read()
+    assert 'st.caption(ask_t("custom_question_help"))' not in source
+    assert ASK_UI_TEXT["en"]["analytics_privacy"] == "Usage analytics & privacy"
+
+
+def test_spanish_top_contributor_copy_and_group_summary_spacing():
+    answer = {
+        "intent": "top_contributors",
+        "status": "ok",
+        "period": None,
+        "parameters": {},
+        "metrics": {"mode": "ranking", "top_n": 2},
+        "rankings": {
+            "alliances": [
+                {
+                    "alliance": "MBV",
+                    "positive_total": 2000,
+                    "net_total": -300,
+                    "players": [
+                        {
+                            "player_name": "Alpha",
+                            "net_score": 1200,
+                            "score_gained": 1500,
+                            "score_lost": 300,
+                            "share_of_positive": 60.0,
+                        },
+                        {
+                            "player_name": "Beta",
+                            "net_score": 800,
+                            "score_gained": 1000,
+                            "score_lost": 200,
+                            "share_of_positive": 40.0,
+                        },
+                    ],
+                },
+                {
+                    "alliance": "NoM",
+                    "positive_total": 500,
+                    "net_total": 400,
+                    "players": [
+                        {
+                            "player_name": "Gamma",
+                            "net_score": 500,
+                            "score_gained": 600,
+                            "score_lost": 100,
+                            "share_of_positive": 100.0,
+                        }
+                    ],
+                },
+            ]
+        },
+    }
+    rendered = render_dashboard_answer(answer, locale="es")
+    assert "Con **2 alianzas** seleccionadas" in rendered
+    assert "según su **puntuación neta**" in rendered
+    assert "**MBV** — contribuyentes con puntuación neta positiva:" in rendered
+    assert "puntuación neta **+1.200**" in rendered
+    assert "\n\nLos jugadores mostrados representan el **100,0\u202f%**" in rendered
+    assert "\n\nPuntuación neta total de la alianza" in rendered

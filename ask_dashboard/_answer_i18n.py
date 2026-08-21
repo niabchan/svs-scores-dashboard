@@ -129,13 +129,13 @@ ANSWER_TEXT = {
         "negative_intro": "Después de excluir **{count} jugador(es)**{period} — **{excluded}** — {direction}",
         "removed": "eliminado {amount}, {rate:.1f}%",
         "negative_formula": "Participación negativa = impacto negativo ÷ (contribución positiva + impacto negativo).",
-        "top_single_intro": "Los principales contribuyentes{period} se ordenan por **puntuación neta de jugador**.",
-        "top_multi_intro": "Como hay **{count} alianzas** seleccionadas{period}, el panel muestra los **{top_n}** principales contribuyentes de cada alianza. Los jugadores se ordenan por **puntuación neta de jugador**.",
-        "top_group_positive": "contribuyentes positivos por puntuación neta",
+        "top_single_intro": "Los principales contribuyentes{period} se ordenan según su **puntuación neta**.",
+        "top_multi_intro": "Con **{count} alianzas** seleccionadas{period}, el panel muestra los **{top_n}** principales contribuyentes de cada alianza. Los jugadores se ordenan según su **puntuación neta**.",
+        "top_group_positive": "contribuyentes con puntuación neta positiva",
         "top_group_no_positive": "jugadores con las puntuaciones netas más altas; ningún jugador tiene puntuación neta positiva en este ámbito",
-        "top_player_detail": "neto **{net}** (obtenidos {gained}, perdidos {lost})",
+        "top_player_detail": "puntuación neta **{net}** (obtenidos {gained}, perdidos {lost})",
         "top_player_share": ", **{share:.1f}%** de la contribución positiva de la alianza",
-        "top_group_share": "Los jugadores mostrados representan **{share:.1f}%** de la contribución positiva de esta alianza en el ámbito de filtros actual.",
+        "top_group_share": "Los jugadores mostrados representan el **{share:.1f}%** de la contribución positiva de esta alianza en el ámbito de filtros actual.",
         "alliance_total": "Puntuación neta total de la alianza en este ámbito: **{net}**.",
         "excluded_others": "y {count} más",
         "help_text": "## Cómo usar Ask Dashboard\n\n1. Selecciona primero el período SVS y los filtros de la barra lateral.\n2. Pregunta por puntuaciones de jugadores o alianzas, clasificaciones, exclusiones o contribución negativa.\n3. Las respuestas usan únicamente los datos incluidos por los filtros actuales.\n\nLas áreas admitidas incluyen resúmenes generales de puntuación de alianzas, líderes de puntuación neta de jugadores y alianzas, contribución positiva frente a impacto negativo, exclusiones de jugadores, cambios en la participación negativa, principales contribuyentes y puntuación neta total tras excluir alianzas concretas.\n\n**Ejemplos de preguntas (escríbelas en inglés):**\n- Top net score player\n- Top alliance score\n- Which alliance leads net score?\n- Who contributed most in SnS?\n- What changed after excluding the selected players?\n\n**Más ayuda (usa los comandos en inglés):** `help filters`, `help questions`, `help player selection` o `help limitations`.\n\nAsk Dashboard describe resultados de puntuación registrados. No puede determinar los motivos, intenciones, carácter, habilidad, estrategia, responsabilidad ni circunstancias de juego no registradas de un jugador a partir de los datos de puntuación.",
@@ -1082,6 +1082,7 @@ def _render_top_contributors(answer, locale):
             ranked_total = sum(
                 row["net_score"] for row in group.get("players", []) if row["net_score"] > 0
             )
+            lines.append("")
             lines.append(
                 _t(
                     locale,
@@ -1089,6 +1090,7 @@ def _render_top_contributors(answer, locale):
                     share=ranked_total / group["positive_total"] * 100,
                 )
             )
+        lines.append("")
         lines.append(_t(locale, "alliance_total", net=legacy.format_signed_score(group["net_total"])))
         sections.append("\n".join(lines))
     return intro + "\n\n" + "\n\n".join(sections)
