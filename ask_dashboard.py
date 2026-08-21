@@ -1308,7 +1308,9 @@ def _render_top_contributors(answer):
             lines.append(f"{rank}. **{row['player_name']}** — {details}")
         if group.get("positive_total", 0) > 0:
             ranked_total = sum(row["net_score"] for row in group.get("players", []) if row["net_score"] > 0)
+            lines.append("")
             lines.append(f"The listed player(s) account for **{ranked_total / group['positive_total'] * 100:.1f}%** of this alliance's positive contribution in the current filter scope.")
+        lines.append("")
         lines.append(f"Alliance total net score in this scope: **{format_signed_score(group['net_total'])}**.")
         sections.append("\n".join(lines))
     return intro + "\n\n" + "\n\n".join(sections)

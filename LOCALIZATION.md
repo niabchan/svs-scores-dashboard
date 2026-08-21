@@ -12,9 +12,13 @@ English is the canonical source for product meaning. A translation may be longer
 
 ## Current capability boundary
 
-The interface is multilingual, but free-text Ask Dashboard routing and generated explanations are currently English-first. Do not imply full multilingual question understanding until routing and answer-generation tests exist for that language.
+The interface and deterministic Ask Dashboard explanations support English, Spanish, French, Vietnamese, and Indonesian. Final answer rendering follows the selected dashboard UI locale after the structured answer has been calculated.
 
-Use localized limitation copy near the custom-question input rather than leaving users to infer the limitation after an unsupported answer.
+Free-text question routing remains English-first, so custom questions currently work best when entered in English. Suggested questions keep their canonical English/internal values for routing and are localized only for display. Do not imply full multilingual question understanding until routing tests exist for those languages.
+
+Localized answer rendering is a presentation layer only: it does not send score rows, player names, alliance names, rankings, or calculated values to a translation model. Player and alliance names remain unchanged, and metric meanings and scope boundaries must match the English canonical answer.
+
+Keep localized limitation copy near the custom-question input so users understand this distinction before submitting a free-text question.
 
 ## Key rules
 

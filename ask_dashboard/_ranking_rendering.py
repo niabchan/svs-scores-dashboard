@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ._answer_i18n import render_localized_dashboard_answer
 from ._legacy import legacy
 from ._rendering import (
     _show_notice,
@@ -52,7 +53,12 @@ def _render_alliance_net_score_ranking(answer):
     )
 
 
-def render_dashboard_answer(answer):
+def render_dashboard_answer(answer, locale="en"):
+    """Render an answer in the requested UI locale, defaulting to established English."""
+    localized = render_localized_dashboard_answer(answer, locale)
+    if localized is not None:
+        return localized
+
     if isinstance(answer, dict) and answer.get("intent") == "net_score_leader_summary":
         rendered = _render_alliance_net_score_ranking(answer)
         if _show_notice(answer):
@@ -61,7 +67,10 @@ def render_dashboard_answer(answer):
     return _base_render_dashboard_answer(answer)
 
 
-def answer_dashboard_question(*args, **kwargs):
+def answer_dashboard_question(*args, locale="en", **kwargs):
     from ._calculation import calculate_dashboard_answer
 
-    return render_dashboard_answer(calculate_dashboard_answer(*args, **kwargs))
+    return render_dashboard_answer(
+        calculate_dashboard_answer(*args, **kwargs),
+        locale=locale,
+    )

@@ -269,10 +269,10 @@ TEXT = {
         "player_data_caption": "Données SVS filtrées au niveau des joueurs utilisées dans les graphiques et les analyses.",
         "player_rankings": "Classement des joueurs",
         "select_ranking_view": "Sélectionnez une vue du classement",
-        "top_10_net_score": "Top 10 score net",
-        "bottom_10_net_score": "Bottom 10 score net",
-        "top_10_score_gained": "Top 10 points gagnés",
-        "top_10_score_lost": "Top 10 points perdus",
+        "top_10_net_score": "10 scores nets les plus élevés",
+        "bottom_10_net_score": "10 scores nets les plus faibles",
+        "top_10_score_gained": "10 totaux de points gagnés les plus élevés",
+        "top_10_score_lost": "10 totaux de points perdus les plus élevés",
         "contribution_insight": "Analyse des contributions",
         "contribution_insight_caption": "Découvrez comment les alliances sélectionnées contribuent aux résultats positifs et négatifs du SVS.",
         "contribution_share": "### Part de contribution",
@@ -912,7 +912,6 @@ def ask_dashboard_dialog():
     include_full_text = False
 
     if suggested_question == QUESTION_CUSTOM:
-        st.caption(ask_t("custom_question_help"))
         custom_question = st.text_area(
             ask_t("enter_question"),
             placeholder=ask_t("question_placeholder"),
@@ -973,7 +972,10 @@ def ask_dashboard_dialog():
         else:
             st.session_state.pop("ask_dashboard_logging_error", None)
 
-        rendered_answer = render_dashboard_answer(answer)
+        rendered_answer = render_dashboard_answer(
+            answer,
+            locale=st.session_state.get("lang", "en"),
+        )
         st.session_state.pop("ask_dashboard_pending_answer_event", None)
         st.session_state.pop("ask_dashboard_last_answer_event_id", None)
         answer_event = None
@@ -1014,32 +1016,27 @@ def ask_dashboard_dialog():
 
         st.session_state["ask_dashboard_last_question"] = question
         st.session_state["ask_dashboard_last_rendered_answer"] = rendered_answer
+        st.session_state["ask_dashboard_last_answer_locale"] = st.session_state.get("lang", "en")
 
     last_question = st.session_state.get("ask_dashboard_last_question")
     last_rendered_answer = st.session_state.get("ask_dashboard_last_rendered_answer")
+    last_answer_locale = st.session_state.get("ask_dashboard_last_answer_locale")
     last_answer_event_id = st.session_state.get("ask_dashboard_last_answer_event_id")
     pending_answer_event = st.session_state.get("ask_dashboard_pending_answer_event")
-    if last_rendered_answer and last_question == question:
+    if (
+        last_rendered_answer
+        and last_question == question
+        and last_answer_locale == st.session_state.get("lang", "en")
+    ):
         st.subheader(ask_t("explanation"))
         st.markdown(last_rendered_answer)
 
-        if not last_answer_event_id and isinstance(pending_answer_event, dict):
-            st.info(ask_t("feedback_pending"))
-            if st.button(
-                ask_t("retry_analytics"),
-                key=f"ask_dashboard_retry_answer_{pending_answer_event.get('event_id', 'pending')}",
-            ):
-                retry_result = _persist_preview_analytics(pending_answer_event)
-                if retry_result.get("ok"):
-                    st.session_state["ask_dashboard_last_answer_event_id"] = pending_answer_event["event_id"]
-                    st.session_state["ask_dashboard_feedback_submitted_for"] = None
-                    st.session_state.pop("ask_dashboard_pending_answer_event", None)
-                    st.rerun()
-                else:
-                    st.warning(ask_t("retry_failed"))
+        feedback_target_id = last_answer_event_id
+        if not feedback_target_id and isinstance(pending_answer_event, dict):
+            feedback_target_id = pending_answer_event.get("event_id")
 
-        if last_answer_event_id:
-            if st.session_state.get("ask_dashboard_feedback_submitted_for") == last_answer_event_id:
+        if feedback_target_id:
+            if st.session_state.get("ask_dashboard_feedback_submitted_for") == feedback_target_id:
                 st.success(ask_t("feedback_recorded"))
             else:
                 st.markdown(f"#### {ask_t('was_helpful')}")
@@ -1051,7 +1048,7 @@ def ask_dashboard_dialog():
                     ),
                     horizontal=True,
                     label_visibility="collapsed",
-                    key=f"ask_dashboard_feedback_choice_{last_answer_event_id}",
+                    key=f"ask_dashboard_feedback_choice_{feedback_target_id}",
                 )
                 feedback_reason = None
                 if feedback_choice == "not_helpful":
@@ -1061,7 +1058,7 @@ def ask_dashboard_dialog():
                         format_func=lambda value: feedback_reason_label(
                             st.session_state.get("lang", "en"), value
                         ),
-                        key=f"ask_dashboard_feedback_reason_{last_answer_event_id}",
+                        key=f"ask_dashboard_feedback_reason_{feedback_target_id}",
                     )
                     feedback_reason = FEEDBACK_REASON_CODES[reason_key]
                 elif feedback_choice == "helpful":
@@ -1070,27 +1067,52 @@ def ask_dashboard_dialog():
                 feedback_comment = st.text_area(
                     ask_t("optional_comment"),
                     placeholder=ask_t("comment_placeholder"),
-                    key=f"ask_dashboard_feedback_comment_{last_answer_event_id}",
+                    key=f"ask_dashboard_feedback_comment_{feedback_target_id}",
                 )
                 if st.button(
                     ask_t("submit_feedback"),
                     disabled=feedback_choice == "choose",
-                    key=f"ask_dashboard_feedback_submit_{last_answer_event_id}",
+                    key=f"ask_dashboard_feedback_submit_{feedback_target_id}",
                 ):
                     try:
-                        feedback_event = build_feedback_event(
-                            last_answer_event_id,
-                            helpful=feedback_choice == "helpful",
-                            reason=feedback_reason,
-                            comment=feedback_comment.strip() or None,
-                            app_version=analytics_config["app_version"],
-                        )
-                        result = _persist_preview_analytics(feedback_event)
-                        if result.get("ok"):
-                            st.session_state["ask_dashboard_feedback_submitted_for"] = last_answer_event_id
-                            st.rerun()
-                        else:
+                        confirmed_answer_event_id = last_answer_event_id
+                        if (
+                            not confirmed_answer_event_id
+                            and isinstance(pending_answer_event, dict)
+                        ):
+                            retry_result = _persist_preview_analytics(
+                                pending_answer_event
+                            )
+                            if retry_result.get("ok"):
+                                confirmed_answer_event_id = pending_answer_event.get(
+                                    "event_id"
+                                )
+                                if confirmed_answer_event_id:
+                                    st.session_state[
+                                        "ask_dashboard_last_answer_event_id"
+                                    ] = confirmed_answer_event_id
+                                    st.session_state.pop(
+                                        "ask_dashboard_pending_answer_event", None
+                                    )
+
+                        if not confirmed_answer_event_id:
                             st.warning(ask_t("feedback_delivery_failed"))
+                        else:
+                            feedback_event = build_feedback_event(
+                                confirmed_answer_event_id,
+                                helpful=feedback_choice == "helpful",
+                                reason=feedback_reason,
+                                comment=feedback_comment.strip() or None,
+                                app_version=analytics_config["app_version"],
+                            )
+                            result = _persist_preview_analytics(feedback_event)
+                            if result.get("ok"):
+                                st.session_state[
+                                    "ask_dashboard_feedback_submitted_for"
+                                ] = confirmed_answer_event_id
+                                st.rerun()
+                            else:
+                                st.warning(ask_t("feedback_delivery_failed"))
                     except Exception:
                         st.warning(ask_t("feedback_delivery_failed"))
 
