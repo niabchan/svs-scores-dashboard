@@ -110,10 +110,10 @@ def test_metric_definition_is_localized_without_changing_metric_value_semantics(
 def test_localized_dynamic_answer_preserves_names_and_numbers():
     answer = _alliance_positive_answer()
     expected = {
-        "es": ("contribución positiva", "1,200"),
+        "es": ("contribución positiva", "1.200"),
         "fr": ("contribution positive", "1\u202f200"),
         "vi": ("đóng góp tích cực", "1.200"),
-        "id": ("kontribusi positif", "1,200"),
+        "id": ("kontribusi positif", "1.200"),
     }
     for locale, (marker, formatted_number) in expected.items():
         rendered = render_dashboard_answer(answer, locale=locale)
@@ -199,17 +199,23 @@ def test_indonesian_help_copy_is_polished_without_changing_capability_boundary()
     assert "Ask Dashboard menjelaskan hasil poin yang tercatat. Ask Dashboard" not in rendered
 
 
-def test_french_and_vietnamese_answers_use_locale_number_punctuation():
+def test_localized_answers_use_locale_number_punctuation():
     answer = _alliance_positive_answer()
+    es = render_dashboard_answer(answer, locale="es")
     fr = render_dashboard_answer(answer, locale="fr")
     vi = render_dashboard_answer(answer, locale="vi")
+    id_rendered = render_dashboard_answer(answer, locale="id")
 
+    assert "1.200" in es
+    assert "60,0\u202f%" in es
     assert "1\u202f200" in fr
     assert "60,0\u202f%" in fr
     assert "1.200" in vi
     assert "60,0%" in vi
-    assert "1,200" not in fr
-    assert "1,200" not in vi
+    assert "1.200" in id_rendered
+    assert "60,0%" in id_rendered
+    for rendered in (es, fr, vi, id_rendered):
+        assert "1,200" not in rendered
 
 
 def test_french_cleanup_avoids_translation_calques():
@@ -232,3 +238,20 @@ def test_french_ranking_selector_has_no_top_bottom_english_leakage():
     assert '"bottom_10_net_score": "Bottom 10 score net"' not in source
     assert '"top_10_net_score": "10 scores nets les plus élevés"' in source
     assert '"bottom_10_net_score": "10 scores nets les plus faibles"' in source
+
+
+def test_spanish_cleanup_avoids_translation_calques():
+    assert "magnitud" not in ANSWER_TEXT["es"]["metric_lost"].casefold()
+    assert "magnitud" not in ANSWER_TEXT["es"]["metric_negative"].casefold()
+    assert "aporte útil" not in ANSWER_TEXT["es"]["outcome_decreased"].casefold()
+    assert ANSWER_TEXT["es"]["negative_formula"].startswith("Participación negativa")
+    assert "mayor contribución positiva" in ANSWER_TEXT["es"]["player_positive_single"]
+
+
+def test_indonesian_cleanup_avoids_translation_calques():
+    assert "besaran" not in ANSWER_TEXT["id"]["metric_lost"].casefold()
+    assert "besaran" not in ANSWER_TEXT["id"]["negative_no_magnitude"].casefold()
+    assert "kontribusi bermanfaat" not in ANSWER_TEXT["id"]["outcome_decreased"].casefold()
+    assert "dampak negatif mentah" not in ANSWER_TEXT["id"]["negative_reason_increase_down"].casefold()
+    assert ANSWER_TEXT["id"]["negative_formula"].startswith("Persentase dampak negatif")
+    assert "kontribusi positif terbesar" in ANSWER_TEXT["id"]["player_positive_single"]
