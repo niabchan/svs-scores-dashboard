@@ -185,5 +185,5 @@ def test_spanish_top_contributor_copy_and_group_summary_spacing():
 '''
 if 'def test_custom_question_guidance_is_consolidated_into_placeholder' in text:
     raise RuntimeError('presentation cleanup tests already exist')
-text = text.rstrip() + append + '\n'
+text = text.rstrip() + append.rstrip() + '\n'
 path.write_text(text, encoding='utf-8')
