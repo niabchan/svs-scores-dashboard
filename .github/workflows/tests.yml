@@ -7,37 +7,17 @@ on:
       - ask-dashboard-wip
       - work
 
-permissions:
-  contents: write
-
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/multilingual-ask-answers
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install test dependencies
         run: python -m pip install -r requirements-test.txt
-      - name: Apply French and Vietnamese localization cleanup
-        run: python scripts/run_fr_vi_localization_cleanup.py
       - name: Compile Python files
         run: python -m py_compile app.py ask_dashboard.py openai_intent.py data_loading.py usage_analytics.py ui_copy.py ask_dashboard/_answer_i18n.py ask_dashboard/_ranking_rendering.py test_ask_dashboard.py test_alliance_score_overview.py test_ai_model_observability.py test_answer_i18n.py test_data_loading.py test_feedback_pending_flow.py test_table_layout.py test_usage_analytics.py test_ui_copy.py test_ui_copy_shell.py
       - name: Run tests
-        run: |
-          python -m pytest -q
-          git diff --check
-      - name: Commit validated localization cleanup
-        run: |
-          if git diff --quiet -- app.py ui_copy.py ask_dashboard/_answer_i18n.py test_answer_i18n.py; then
-            echo "French/Vietnamese cleanup already applied."
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app.py ui_copy.py ask_dashboard/_answer_i18n.py test_answer_i18n.py
-          git commit -m 'Polish French and Vietnamese localization'
-          git push origin HEAD:agent/multilingual-ask-answers
+        run: python -m pytest -q
