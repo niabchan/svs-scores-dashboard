@@ -85,6 +85,19 @@ def _is_metric_definition_request(text: str) -> bool:
     return any(re.fullmatch(pattern, text) for pattern in _METRIC_DEFINITION_PATTERNS)
 
 
+_GENERAL_HELP_PATTERNS = (
+    r"^(?:(?:hello|hi|hey)(?: there)? )?(?:can|could|would|will) you help me(?: please)?$",
+    r"^(?:(?:hello|hi|hey)(?: there)? )?please help me$",
+    r"^(?:(?:hello|hi|hey)(?: there)? )?help me(?: please)?$",
+    r"^(?:(?:hello|hi|hey)(?: there)? )?i (?:need|would like) help$",
+)
+
+
+def _is_general_help_request(text: str) -> bool:
+    """Recognize only standalone/general help requests, not analytical questions."""
+    return any(re.fullmatch(pattern, text) for pattern in _GENERAL_HELP_PATTERNS)
+
+
 def _is_player_net_balance_request(text: str) -> bool:
     words = set(text.split())
     player_subject = bool(words.intersection({"who", "player", "players"}))
@@ -160,6 +173,11 @@ def route_dashboard_question(question, known_alliance_names=None):
     if _is_metric_definition_request(normalized):
         # Metric explanations are deterministic dashboard help and do not need
         # an API classification or access to score rows.
+        return legacy._intent_contract("dashboard_help")
+    if _is_general_help_request(normalized):
+        # Generic requests for help are deterministic product guidance. Keep
+        # this intentionally narrow so analytical questions containing "help"
+        # still proceed through normal rule/API routing.
         return legacy._intent_contract("dashboard_help")
     if _is_player_net_balance_request(normalized):
         return legacy._intent_contract(

@@ -164,3 +164,36 @@ def test_app_does_not_show_a_stale_answer_after_ui_locale_changes():
     assert 'st.session_state["ask_dashboard_last_answer_locale"] = st.session_state.get("lang", "en")' in source
     assert 'last_answer_locale = st.session_state.get("ask_dashboard_last_answer_locale")' in source
     assert 'and last_answer_locale == st.session_state.get("lang", "en")' in source
+
+
+def test_localized_help_marks_english_examples_as_exact_input_language():
+    answer = {
+        "intent": "dashboard_help",
+        "status": "ok",
+        "parameters": {"question": "Hello. Can you help me?"},
+    }
+    markers = {
+        "es": ("escríbelas en inglés", "comandos en inglés"),
+        "fr": ("à saisir en anglais", "commandes en anglais"),
+        "vi": ("nhập bằng tiếng Anh", "lệnh tiếng Anh"),
+        "id": ("ketik dalam bahasa Inggris", "perintah bahasa Inggris"),
+    }
+    for locale, (example_marker, command_marker) in markers.items():
+        rendered = render_dashboard_answer(answer, locale=locale)
+        assert example_marker in rendered
+        assert command_marker in rendered
+        assert "Which alliance leads net score?" in rendered
+        assert "`help filters`" in rendered
+
+
+def test_indonesian_help_copy_is_polished_without_changing_capability_boundary():
+    answer = {
+        "intent": "dashboard_help",
+        "status": "ok",
+        "parameters": {"question": "Hello. Can you help me?"},
+    }
+    rendered = render_dashboard_answer(answer, locale="id")
+    assert "Ask Dashboard dapat membantu menjelaskan" in rendered
+    assert "kontribusi positif dan dampak negatif" in rendered
+    assert "hasil skor yang tercatat, tetapi tidak dapat menentukan" in rendered
+    assert "Ask Dashboard menjelaskan hasil poin yang tercatat. Ask Dashboard" not in rendered

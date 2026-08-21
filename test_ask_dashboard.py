@@ -1986,3 +1986,45 @@ def test_concept_based_limitation_preserves_supported_analytics(question, intent
     )
     assert hybrid["contract"]["intent"] == intent
     assert hybrid["ai_attempted"] is False
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Can you help me?",
+        "Hello. Can you help me?",
+        "Could you help me please?",
+        "Please help me",
+        "I need help",
+    ],
+)
+def test_general_help_requests_route_deterministically(question):
+    contract = route_dashboard_question(question, ["SnS"])
+    assert contract["intent"] == "dashboard_help"
+    assert contract["source"] == "rule"
+    assert contract["match_status"] == "matched"
+
+
+def test_general_help_hybrid_does_not_call_ai():
+    from ask_dashboard import route_dashboard_question_hybrid
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("AI extractor should not be called for generic help")
+
+    result = route_dashboard_question_hybrid(
+        "Hello. Can you help me?",
+        ["SnS"],
+        ai_enabled=True,
+        ai_extractor=fail_if_called,
+    )
+    assert result["contract"]["intent"] == "dashboard_help"
+    assert result["ai_attempted"] is False
+    assert result["ai_succeeded"] is False
+
+
+def test_help_wording_does_not_swallow_analytical_questions():
+    contract = route_dashboard_question(
+        "Can you help me understand why SnS has the highest net score?",
+        ["SnS"],
+    )
+    assert contract["intent"] != "dashboard_help"
