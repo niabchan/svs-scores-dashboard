@@ -36,6 +36,7 @@ def test_english_top_contributor_group_summary_spacing():
                     "alliance": "MBV",
                     "positive_total": 2000,
                     "net_total": -300,
+                    "ranking_description": "positive contributors by net score",
                     "players": [
                         {
                             "player_name": "Alpha",
