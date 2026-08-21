@@ -39,3 +39,5 @@ jobs:
           git add app.py ui_copy.py
           git commit -m 'Keep analytics retry plumbing behind feedback submission'
           git push origin HEAD:agent/multilingual-ask-answers
+
+# Trigger after workflow creation.
