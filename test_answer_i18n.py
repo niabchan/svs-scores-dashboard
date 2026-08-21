@@ -323,3 +323,41 @@ def test_spanish_top_contributor_copy_and_group_summary_spacing():
     assert "puntuación neta **+1.200**" in rendered
     assert "\n\nLos jugadores mostrados representan el **100,0\u202f%**" in rendered
     assert "\n\nPuntuación neta total de la alianza" in rendered
+
+def test_english_top_contributor_group_summary_spacing():
+    answer = {
+        "intent": "top_contributors",
+        "status": "ok",
+        "period": None,
+        "parameters": {},
+        "metrics": {"mode": "ranking", "top_n": 2},
+        "rankings": {
+            "alliances": [
+                {
+                    "alliance": "MBV",
+                    "positive_total": 2000,
+                    "net_total": -300,
+                    "ranking_description": "positive contributors by net score",
+                    "players": [
+                        {
+                            "player_name": "Alpha",
+                            "net_score": 1200,
+                            "score_gained": 1500,
+                            "score_lost": 300,
+                            "share_of_positive": 60.0,
+                        },
+                        {
+                            "player_name": "Beta",
+                            "net_score": 800,
+                            "score_gained": 1000,
+                            "score_lost": 200,
+                            "share_of_positive": 40.0,
+                        },
+                    ],
+                }
+            ]
+        },
+    }
+    rendered = render_dashboard_answer(answer, locale="en")
+    assert "\n\nThe listed player(s) account for **100.0%**" in rendered
+    assert "\n\nAlliance total net score in this scope: **-300**." in rendered
