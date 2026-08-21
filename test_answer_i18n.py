@@ -109,17 +109,17 @@ def test_metric_definition_is_localized_without_changing_metric_value_semantics(
 
 def test_localized_dynamic_answer_preserves_names_and_numbers():
     answer = _alliance_positive_answer()
-    expected_language_markers = {
-        "es": "contribución positiva",
-        "fr": "contribution positive",
-        "vi": "đóng góp tích cực",
-        "id": "kontribusi positif",
+    expected = {
+        "es": ("contribución positiva", "1,200"),
+        "fr": ("contribution positive", "1\u202f200"),
+        "vi": ("đóng góp tích cực", "1.200"),
+        "id": ("kontribusi positif", "1,200"),
     }
-    for locale, marker in expected_language_markers.items():
+    for locale, (marker, formatted_number) in expected.items():
         rendered = render_dashboard_answer(answer, locale=locale)
         assert "SnS" in rendered
         assert "TDA" in rendered
-        assert "1,200" in rendered
+        assert formatted_number in rendered
         assert marker.casefold() in rendered.casefold()
 
 
@@ -197,3 +197,38 @@ def test_indonesian_help_copy_is_polished_without_changing_capability_boundary()
     assert "kontribusi positif dan dampak negatif" in rendered
     assert "hasil skor yang tercatat, tetapi tidak dapat menentukan" in rendered
     assert "Ask Dashboard menjelaskan hasil poin yang tercatat. Ask Dashboard" not in rendered
+
+
+def test_french_and_vietnamese_answers_use_locale_number_punctuation():
+    answer = _alliance_positive_answer()
+    fr = render_dashboard_answer(answer, locale="fr")
+    vi = render_dashboard_answer(answer, locale="vi")
+
+    assert "1\u202f200" in fr
+    assert "60,0\u202f%" in fr
+    assert "1.200" in vi
+    assert "60,0%" in vi
+    assert "1,200" not in fr
+    assert "1,200" not in vi
+
+
+def test_french_cleanup_avoids_translation_calques():
+    assert "magnitude" not in ANSWER_TEXT["fr"]["metric_lost"].casefold()
+    assert "magnitude" not in ANSWER_TEXT["fr"]["metric_negative"].casefold()
+    assert "gains utiles" not in ANSWER_TEXT["fr"]["outcome_improved"].casefold()
+    assert ANSWER_TEXT["fr"]["negative_formula"].startswith("Part négative")
+
+
+def test_vietnamese_cleanup_uses_consistent_negative_share_terminology():
+    assert "độ lớn" not in ANSWER_TEXT["vi"]["negative_no_magnitude"].casefold()
+    assert "độ lớn" not in ANSWER_TEXT["vi"]["negative_after_none"].casefold()
+    assert ANSWER_TEXT["vi"]["negative_formula"].startswith("Tỷ trọng tiêu cực")
+    assert "người có đóng góp tích cực lớn nhất" in ANSWER_TEXT["vi"]["player_positive_single"]
+
+
+def test_french_ranking_selector_has_no_top_bottom_english_leakage():
+    source = open("app.py", encoding="utf-8").read()
+    assert '"top_10_net_score": "Top 10 score net"' not in source
+    assert '"bottom_10_net_score": "Bottom 10 score net"' not in source
+    assert '"top_10_net_score": "10 scores nets les plus élevés"' in source
+    assert '"bottom_10_net_score": "10 scores nets les plus faibles"' in source

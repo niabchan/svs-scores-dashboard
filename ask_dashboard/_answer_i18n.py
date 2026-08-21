@@ -166,16 +166,16 @@ ANSWER_TEXT = {
         "unsupported_generic": "Je n’ai pas pu associer cette question à l’une des analyses prises en charge par le tableau de bord. Posez une question sur les scores enregistrés des joueurs ou alliances, les classements, les exclusions, la contribution positive, l’impact négatif ou les définitions de métriques.\n\n**Exemples de questions (à saisir en anglais) :**\n- What is net score?\n- Which player has the strongest overall balance?\n- What is the total net score without TDA?\n- Who contributed most in SnS?\n- Why did the negative share rise?",
         "metric_net": "**Score net** = **points gagnés − points perdus**. Un score net positif signifie que le joueur ou l’alliance a gagné plus de points qu’il ou elle n’en a perdu ; une valeur négative signifie que les pertes sont supérieures aux gains. Ask Dashboard utilise le score net comme mesure par défaut du résultat global enregistré.",
         "metric_gained": "**Points gagnés** correspond au nombre total de points SVS enregistrés comme obtenus. Cette mesure indique l’activité ayant ajouté des points, mais ne soustrait pas les points perdus ; elle n’est donc pas équivalente au score net.",
-        "metric_lost": "**Points perdus** correspond à la magnitude totale des points SVS enregistrés comme perdus. Ask Dashboard l’affiche comme une quantité positive de perte et la soustrait aux points gagnés lors du calcul du score net.",
+        "metric_lost": "**Points perdus** correspond au total des points SVS enregistrés comme perdus. Ask Dashboard les affiche comme une quantité positive de pertes et les soustrait aux points gagnés lors du calcul du score net.",
         "metric_positive": "**Contribution positive** est la somme des **scores nets positifs des joueurs** dans le périmètre sélectionné. Seuls les joueurs dont le score net est supérieur à zéro sont comptés ; il ne s’agit pas simplement du total des points gagnés.",
-        "metric_negative": "**Impact négatif** est le total absolu des **scores nets négatifs des joueurs** dans le périmètre sélectionné. Il indique dans quelle mesure le côté négatif a réduit le résultat tout en présentant la magnitude sous forme positive pour faciliter la comparaison.",
-        "metric_negative_share": "**Part négative** = **impact négatif ÷ (contribution positive + impact négatif) × 100**. Elle décrit la part du côté négatif dans la magnitude totale du score net, et non le pourcentage de joueurs ayant terminé avec un score négatif.",
+        "metric_negative": "**Impact négatif** est la valeur absolue totale des **scores nets négatifs des joueurs** dans le périmètre sélectionné. Il indique de combien le côté négatif réduit le résultat, tout en présentant cette valeur sous forme positive pour faciliter la comparaison.",
+        "metric_negative_share": "**Part négative** = **impact négatif ÷ (contribution positive + impact négatif) × 100**. Elle indique la part de l’impact négatif dans l’ensemble formé par la contribution positive et l’impact négatif, et non le pourcentage de joueurs ayant terminé avec un score négatif.",
         "alliance_positive_tie": "{intro}, {names} sont à égalité pour la plus grande contribution positive, avec **{score}** chacune.",
-        "alliance_positive_single": "{intro}, **{alliance}** est l’alliance qui contribue le plus au côté positif, avec **{score}**.",
+        "alliance_positive_single": "{intro}, **{alliance}** est l’alliance qui apporte la plus forte contribution positive, avec **{score}**.",
         "positive_share": "Elle génère **{share:.1f}%** de la contribution positive dans ce périmètre.",
         "positive_ranking": "**Classement par contribution positive**",
         "player_positive_tie": "{intro}{scope}, {names} sont à égalité pour la plus grande contribution positive, avec **{score}** chacun.",
-        "player_positive_single": "{intro}{scope}, **{player}** est le joueur qui contribue le plus au côté positif, avec **{score}**.",
+        "player_positive_single": "{intro}{scope}, **{player}** est le joueur qui apporte la plus forte contribution positive, avec **{score}**.",
         "label_alliance": "Alliance",
         "label_score_gained": "Points gagnés",
         "label_score_lost": "Points perdus",
@@ -216,12 +216,12 @@ ANSWER_TEXT = {
         "net_positive_conclusion": "L’impact négatif plus faible compense la contribution positive plus petite et laisse {top} devant {leader} de **{lead}** au score net total. Ici, la contribution positive correspond à la somme des scores nets positifs des joueurs et le score net total est égal à la contribution positive moins l’impact négatif.",
         "exclusion_none": "Aucun joueur n’est actuellement exclu du groupe filtré{period}. Les résultats avant et après sont donc identiques : **{players} joueurs** avec un score net total de **{net}**. Retirez au moins un joueur dans l’onglet Analyse de la sélection des joueurs pour comparer l’impact.",
         "exclusion_intro": "Après les exclusions actuelles{period}, l’analyse comprend **{after} joueurs sur {before}**. **Exclus :** {excluded}.",
-        "outcome_improved": "Le score net total **s’est amélioré de {amount}**. Les exclusions ont supprimé **{negative}** d’impact négatif mais seulement **{positive}** de contribution positive ; la réduction des pertes a donc été supérieure à la réduction des gains utiles.",
-        "outcome_decreased": "Le score net total **a diminué de {amount}**. Les exclusions ont supprimé **{positive}** de contribution positive mais seulement **{negative}** d’impact négatif ; davantage de contribution utile a donc été retirée que d’impact nuisible.",
+        "outcome_improved": "Le score net total **s’est amélioré de {amount}**. Les exclusions ont réduit l’impact négatif de **{negative}** mais la contribution positive de seulement **{positive}** ; la diminution de l’impact négatif a donc été plus importante que celle de la contribution positive.",
+        "outcome_decreased": "Le score net total **a diminué de {amount}**. Les exclusions ont réduit la contribution positive de **{positive}** mais l’impact négatif de seulement **{negative}** ; la diminution de la contribution positive a donc été plus importante que celle de l’impact négatif.",
         "outcome_unchanged": "Le score net total n’a pas changé. La contribution positive supprimée (**{positive}**) et l’impact négatif supprimé (**{negative}**) se compensent exactement.",
-        "negative_no_magnitude": "Le pourcentage négatif ne peut pas être calculé car le groupe filtré actuel ne possède aucune magnitude de score net positif ou négatif.",
+        "negative_no_magnitude": "La part négative ne peut pas être calculée car le groupe filtré actuel ne présente ni contribution positive ni impact négatif.",
         "negative_none": "Aucun joueur n’est actuellement exclu du groupe filtré{period}. La part négative reste inchangée à **{share:.1f}%**. Retirez au moins un joueur dans l’onglet Analyse de la sélection des joueurs pour créer une comparaison avant/après.",
-        "negative_after_none": "Après les exclusions actuelles{period}, aucune magnitude de score ne reste dans le groupe sélectionné ; le pourcentage négatif après exclusion ne peut donc pas être calculé.",
+        "negative_after_none": "Après les exclusions actuelles{period}, il ne reste ni contribution positive ni impact négatif dans le groupe sélectionné ; la part négative après exclusion ne peut donc pas être calculée.",
         "negative_mismatch": "La prémisse ne correspond pas à la sélection actuelle : la part négative",
         "negative_normal": "La part négative",
         "negative_increased": "{prefix} **a augmenté de {change:.1f} points de pourcentage**, passant de **{before:.1f}%** à **{after:.1f}%**.",
@@ -233,7 +233,7 @@ ANSWER_TEXT = {
         "negative_reason_unchanged": "La contribution positive et l’impact négatif ont évolué dans des proportions presque identiques ; l’équilibre entre les deux côtés est donc resté stable.",
         "negative_intro": "Après l’exclusion de **{count} joueur(s)**{period} — **{excluded}** — {direction}",
         "removed": "supprimé : {amount}, {rate:.1f}%",
-        "negative_formula": "Pourcentage négatif = impact négatif ÷ (contribution positive + impact négatif).",
+        "negative_formula": "Part négative = impact négatif ÷ (contribution positive + impact négatif).",
         "top_single_intro": "Les principaux contributeurs{period} sont classés selon le **score net des joueurs**.",
         "top_multi_intro": "Comme **{count} alliances** sont sélectionnées{period}, le tableau de bord affiche les **{top_n}** principaux contributeurs de chaque alliance. Les joueurs sont classés selon leur **score net**.",
         "top_group_positive": "contributeurs positifs par score net",
@@ -271,16 +271,16 @@ ANSWER_TEXT = {
         "unsupported_generic": "Tôi không thể khớp câu hỏi đó với một phân tích được hỗ trợ trên bảng điều khiển. Hãy hỏi về điểm đã ghi nhận của người chơi hoặc liên minh, xếp hạng, việc loại người chơi, đóng góp tích cực, tác động tiêu cực hoặc định nghĩa chỉ số.\n\n**Ví dụ câu hỏi (hãy nhập bằng tiếng Anh):**\n- What is net score?\n- Which player has the strongest overall balance?\n- What is the total net score without TDA?\n- Who contributed most in SnS?\n- Why did the negative share rise?",
         "metric_net": "**Điểm ròng** = **điểm kiếm được − điểm bị mất**. Điểm ròng dương nghĩa là người chơi hoặc liên minh kiếm được nhiều điểm hơn số điểm bị mất; giá trị âm nghĩa là số điểm bị mất lớn hơn. Ask Dashboard dùng điểm ròng làm thước đo mặc định cho kết quả tổng thể đã ghi nhận.",
         "metric_gained": "**Điểm kiếm được** là tổng số điểm SVS được ghi nhận là đã kiếm được. Chỉ số này đo hoạt động tạo thêm điểm nhưng không trừ điểm bị mất, vì vậy không giống điểm ròng.",
-        "metric_lost": "**Điểm bị mất** là tổng độ lớn của điểm SVS được ghi nhận là đã mất. Ask Dashboard hiển thị nó dưới dạng một lượng mất điểm dương và trừ khỏi điểm kiếm được khi tính điểm ròng.",
+        "metric_lost": "**Điểm bị mất** là tổng số điểm SVS được ghi nhận là đã mất. Ask Dashboard hiển thị số điểm bị mất dưới dạng một giá trị dương và trừ giá trị này khỏi điểm kiếm được khi tính điểm ròng.",
         "metric_positive": "**Đóng góp tích cực** là tổng **điểm ròng dương của người chơi** trong phạm vi đã chọn. Chỉ những người chơi có điểm ròng lớn hơn 0 được tính; đây không đơn giản là tổng điểm kiếm được.",
-        "metric_negative": "**Tác động tiêu cực** là tổng trị tuyệt đối của **điểm ròng âm của người chơi** trong phạm vi đã chọn. Chỉ số này cho biết phía âm làm giảm kết quả bao nhiêu, đồng thời hiển thị độ lớn dưới dạng số dương để dễ so sánh.",
-        "metric_negative_share": "**Tỷ lệ âm** = **tác động tiêu cực ÷ (đóng góp tích cực + tác động tiêu cực) × 100**. Chỉ số này mô tả tỷ trọng của phía âm trong tổng độ lớn điểm ròng, không phải tỷ lệ phần trăm người chơi kết thúc với điểm âm.",
+        "metric_negative": "**Tác động tiêu cực** là tổng trị tuyệt đối của **điểm ròng âm của người chơi** trong phạm vi đã chọn. Chỉ số này cho biết phần điểm ròng âm làm giảm kết quả bao nhiêu, đồng thời hiển thị giá trị đó dưới dạng số dương để dễ so sánh.",
+        "metric_negative_share": "**Tỷ trọng tiêu cực** = **tác động tiêu cực ÷ (đóng góp tích cực + tác động tiêu cực) × 100**. Chỉ số này cho biết tác động tiêu cực chiếm bao nhiêu trong tổng của đóng góp tích cực và tác động tiêu cực, không phải tỷ lệ người chơi có điểm ròng âm.",
         "alliance_positive_tie": "{intro}, {names} đồng hạng về đóng góp tích cực lớn nhất với **{score}** mỗi liên minh.",
-        "alliance_positive_single": "{intro}, **{alliance}** là liên minh đóng góp nhiều nhất cho phía tích cực với **{score}**.",
-        "positive_share": "Liên minh này tạo ra **{share:.1f}%** đóng góp tích cực trong phạm vi này.",
+        "alliance_positive_single": "{intro}, **{alliance}** là liên minh có đóng góp tích cực lớn nhất, với **{score}**.",
+        "positive_share": "Liên minh này chiếm **{share:.1f}%** trong tổng đóng góp tích cực của phạm vi này.",
         "positive_ranking": "**Xếp hạng đóng góp tích cực**",
         "player_positive_tie": "{intro}{scope}, {names} đồng hạng về đóng góp tích cực lớn nhất với **{score}** mỗi người.",
-        "player_positive_single": "{intro}{scope}, **{player}** là người đóng góp nhiều nhất cho phía tích cực với **{score}**.",
+        "player_positive_single": "{intro}{scope}, **{player}** là người có đóng góp tích cực lớn nhất, với **{score}**.",
         "label_alliance": "Liên minh",
         "label_score_gained": "Điểm kiếm được",
         "label_score_lost": "Điểm bị mất",
@@ -288,7 +288,7 @@ ANSWER_TEXT = {
         "label_positive_contribution": "Đóng góp tích cực",
         "label_negative_impact": "Tác động tiêu cực",
         "label_total_net": "Tổng điểm ròng",
-        "label_share_positive": "Tỷ lệ đóng góp tích cực trong phạm vi này",
+        "label_share_positive": "Tỷ trọng trong tổng đóng góp tích cực của phạm vi này",
         "player_net_tie": "{intro}{scope}, {names} đồng hạng nhất về điểm ròng của người chơi với **{score}**.",
         "player_net_single": "{intro}{scope}, **{player}** có điểm ròng cao nhất trong số người chơi với **{score}**.",
         "player_ranking_named": "**Người chơi hàng đầu trong {names} theo điểm ròng**",
@@ -320,15 +320,15 @@ ANSWER_TEXT = {
         "net_positive_detail": "**{leader}** dẫn đầu về đóng góp tích cực với **{leader_positive}**, nhiều hơn {top} **{gap}**. Tuy nhiên, tác động tiêu cực của {leader} là **{leader_negative}**, so với **{top_negative}** của {top}. Điều này giúp {top} có lợi thế **{advantage}** nhờ mất ít điểm hơn.",
         "net_positive_conclusion": "Tác động tiêu cực thấp hơn bù cho đóng góp tích cực nhỏ hơn, giúp {top} dẫn {leader} **{lead}** về tổng điểm ròng. Ở đây, đóng góp tích cực là tổng điểm ròng dương của người chơi và tổng điểm ròng bằng đóng góp tích cực trừ tác động tiêu cực.",
         "exclusion_none": "Hiện không có người chơi nào bị loại khỏi nhóm đã lọc{period}. Vì vậy kết quả trước và sau giống nhau: **{players} người chơi** với tổng điểm ròng **{net}**. Hãy bỏ chọn ít nhất một người chơi trong tab Phân tích lựa chọn người chơi để so sánh tác động.",
-        "exclusion_intro": "Sau các lần loại hiện tại{period}, phân tích bao gồm **{after}/{before} người chơi**. **Đã loại:** {excluded}.",
-        "outcome_improved": "Tổng điểm ròng **tăng thêm {amount}**. Việc loại người chơi đã bỏ **{negative}** tác động tiêu cực nhưng chỉ bỏ **{positive}** đóng góp tích cực, vì vậy mức giảm mất điểm lớn hơn mức giảm đóng góp tích cực.",
-        "outcome_decreased": "Tổng điểm ròng **giảm {amount}**. Việc loại người chơi đã bỏ **{positive}** đóng góp tích cực nhưng chỉ bỏ **{negative}** tác động tiêu cực, vì vậy phần đóng góp có ích bị loại nhiều hơn phần tác động bất lợi.",
+        "exclusion_intro": "Sau khi áp dụng lựa chọn loại người chơi hiện tại{period}, phân tích còn **{after}/{before} người chơi**. **Người chơi bị loại:** {excluded}.",
+        "outcome_improved": "Tổng điểm ròng **tăng thêm {amount}**. Việc loại người chơi đã giảm tác động tiêu cực **{negative}** nhưng chỉ làm giảm đóng góp tích cực **{positive}**, nên tác động tiêu cực giảm nhiều hơn đóng góp tích cực.",
+        "outcome_decreased": "Tổng điểm ròng **giảm {amount}**. Việc loại người chơi đã làm giảm đóng góp tích cực **{positive}** nhưng chỉ giảm tác động tiêu cực **{negative}**, nên đóng góp tích cực giảm nhiều hơn tác động tiêu cực.",
         "outcome_unchanged": "Tổng điểm ròng không thay đổi. Đóng góp tích cực bị loại (**{positive}**) và tác động tiêu cực bị loại (**{negative}**) bù trừ nhau chính xác.",
-        "negative_no_magnitude": "Không thể tính tỷ lệ âm vì nhóm đã lọc hiện tại không có độ lớn điểm ròng dương hoặc âm.",
-        "negative_none": "Hiện không có người chơi nào bị loại khỏi nhóm đã lọc{period}. Tỷ lệ âm giữ nguyên ở **{share:.1f}%**. Hãy bỏ chọn ít nhất một người chơi trong tab Phân tích lựa chọn người chơi để tạo so sánh trước và sau.",
-        "negative_after_none": "Sau các lần loại hiện tại{period}, nhóm được chọn không còn độ lớn điểm nào nên không thể tính tỷ lệ âm sau khi loại.",
-        "negative_mismatch": "Tiền đề không khớp với lựa chọn hiện tại: tỷ lệ âm",
-        "negative_normal": "Tỷ lệ âm",
+        "negative_no_magnitude": "Không thể tính tỷ trọng tiêu cực vì nhóm đã lọc hiện tại không có đóng góp tích cực hoặc tác động tiêu cực.",
+        "negative_none": "Hiện không có người chơi nào bị loại khỏi nhóm đã lọc{period}. Tỷ trọng tiêu cực giữ nguyên ở **{share:.1f}%**. Hãy bỏ chọn ít nhất một người chơi trong tab Phân tích lựa chọn người chơi để tạo so sánh trước và sau.",
+        "negative_after_none": "Sau khi áp dụng lựa chọn loại người chơi hiện tại{period}, nhóm được chọn không còn đóng góp tích cực hoặc tác động tiêu cực nên không thể tính tỷ trọng tiêu cực sau khi loại.",
+        "negative_mismatch": "Tiền đề không khớp với lựa chọn hiện tại: tỷ trọng tiêu cực",
+        "negative_normal": "Tỷ trọng tiêu cực",
         "negative_increased": "{prefix} **tăng {change:.1f} điểm phần trăm**, từ **{before:.1f}%** lên **{after:.1f}%**.",
         "negative_decreased": "{prefix} **giảm {change:.1f} điểm phần trăm**, từ **{before:.1f}%** xuống **{after:.1f}%**.",
         "negative_unchanged": "{prefix} gần như không đổi ở **{after:.1f}%** ({change:+.1f} điểm phần trăm).",
@@ -338,7 +338,7 @@ ANSWER_TEXT = {
         "negative_reason_unchanged": "Đóng góp tích cực và tác động tiêu cực thay đổi gần như cùng tỷ lệ, vì vậy cân bằng giữa hai phía vẫn ổn định.",
         "negative_intro": "Sau khi loại **{count} người chơi**{period} — **{excluded}** — {direction}",
         "removed": "đã loại {amount}, {rate:.1f}%",
-        "negative_formula": "Tỷ lệ âm = tác động tiêu cực ÷ (đóng góp tích cực + tác động tiêu cực).",
+        "negative_formula": "Tỷ trọng tiêu cực = tác động tiêu cực ÷ (đóng góp tích cực + tác động tiêu cực).",
         "top_single_intro": "Những người đóng góp hàng đầu{period} được xếp hạng theo **điểm ròng của người chơi**.",
         "top_multi_intro": "Vì có **{count} liên minh** được chọn{period}, bảng điều khiển hiển thị **{top_n}** người đóng góp hàng đầu trong mỗi liên minh. Người chơi được xếp hạng theo **điểm ròng của người chơi**.",
         "top_group_positive": "người đóng góp tích cực theo điểm ròng",
@@ -348,9 +348,9 @@ ANSWER_TEXT = {
         "top_group_share": "Những người chơi được liệt kê chiếm **{share:.1f}%** đóng góp tích cực của liên minh này trong phạm vi bộ lọc hiện tại.",
         "alliance_total": "Tổng điểm ròng của liên minh trong phạm vi này: **{net}**.",
         "excluded_others": "và {count} người khác",
-        "help_text": "## Cách sử dụng Ask Dashboard\n\n1. Trước tiên hãy chọn kỳ SVS và các bộ lọc trên thanh bên.\n2. Hỏi về điểm của người chơi hoặc liên minh, xếp hạng, việc loại người chơi hoặc đóng góp tiêu cực.\n3. Câu trả lời chỉ sử dụng dữ liệu nằm trong các bộ lọc hiện tại.\n\nCác nội dung được hỗ trợ gồm tổng quan điểm của liên minh, người dẫn đầu về điểm ròng của người chơi và liên minh, đóng góp tích cực so với tác động tiêu cực, việc loại người chơi, thay đổi tỷ lệ âm, người đóng góp hàng đầu và tổng điểm ròng sau khi loại liên minh được nêu tên.\n\n**Ví dụ câu hỏi (hãy nhập bằng tiếng Anh):**\n- Top net score player\n- Top alliance score\n- Which alliance leads net score?\n- Who contributed most in SnS?\n- What changed after excluding the selected players?\n\n**Trợ giúp thêm (dùng lệnh tiếng Anh):** `help filters`, `help questions`, `help player selection` hoặc `help limitations`.\n\nAsk Dashboard mô tả kết quả điểm đã ghi nhận. Công cụ không thể xác định động cơ, ý định, tính cách, kỹ năng, chiến lược, trách nhiệm hoặc hoàn cảnh chơi không được ghi nhận của người chơi chỉ từ dữ liệu điểm.",
+        "help_text": "## Cách sử dụng Ask Dashboard\n\n1. Trước tiên hãy chọn kỳ SVS và các bộ lọc trên thanh bên.\n2. Hỏi về điểm của người chơi hoặc liên minh, xếp hạng, việc loại người chơi hoặc tác động tiêu cực.\n3. Câu trả lời chỉ sử dụng dữ liệu nằm trong các bộ lọc hiện tại.\n\nCác nội dung được hỗ trợ gồm tổng quan điểm của liên minh, người dẫn đầu về điểm ròng của người chơi và liên minh, đóng góp tích cực so với tác động tiêu cực, việc loại người chơi, thay đổi tỷ trọng tiêu cực, người đóng góp hàng đầu và tổng điểm ròng sau khi loại liên minh được nêu tên.\n\n**Ví dụ câu hỏi (hãy nhập bằng tiếng Anh):**\n- Top net score player\n- Top alliance score\n- Which alliance leads net score?\n- Who contributed most in SnS?\n- What changed after excluding the selected players?\n\n**Trợ giúp thêm (dùng lệnh tiếng Anh):** `help filters`, `help questions`, `help player selection` hoặc `help limitations`.\n\nAsk Dashboard mô tả kết quả điểm đã ghi nhận. Công cụ không thể xác định động cơ, ý định, tính cách, kỹ năng, chiến lược, trách nhiệm hoặc hoàn cảnh chơi không được ghi nhận của người chơi chỉ từ dữ liệu điểm.",
         "limitation_text": "Ask Dashboard không thể xác định hành vi, ý định, động cơ, tính cách, kỹ năng, chiến lược, trách nhiệm hoặc hoàn cảnh chơi không được ghi nhận của người chơi chỉ từ dữ liệu điểm.\n\nCông cụ có thể mô tả các kết quả đã ghi nhận theo bộ lọc hiện tại, chẳng hạn điểm kiếm được, điểm bị mất, điểm ròng, xếp hạng và tổng đóng góp. Cùng một kết quả điểm có thể phát sinh từ những tình huống khác nhau không được ghi lại trong bộ dữ liệu này.\n\nThay vào đó, bạn có thể hỏi về điểm kiếm được, điểm bị mất, điểm ròng hoặc xếp hạng đã ghi nhận của người chơi trong phạm vi hiện tại.",
-        "rounded_notice": "Lưu ý về dữ liệu: một số giá trị điểm kiếm được trong kỳ này dựa trên cách Evony hiển thị số đã làm tròn trong trò chơi. Vì vậy, tổng điểm, điểm ròng, xếp hạng và các kết quả suy ra là xấp xỉ và có thể chênh lệch nhẹ so với giá trị chính xác."
+        "rounded_notice": "Lưu ý về dữ liệu: một số giá trị điểm kiếm được trong kỳ này dựa trên các số đã được Evony làm tròn khi hiển thị trong trò chơi. Vì vậy, tổng điểm, điểm ròng, thứ hạng và các kết quả được tính từ những giá trị này chỉ mang tính xấp xỉ và có thể chênh lệch nhẹ so với giá trị chính xác."
     },
     "id": {
         "period_suffix": " untuk **{period}**",
@@ -485,6 +485,27 @@ def validate_answer_copy_parity():
 
 
 validate_answer_copy_parity()
+
+_GROUPED_NUMBER_RE = re.compile(r"(?<![\w])([+-]?\d{1,3}(?:,\d{3})+)(?![\w])")
+_PERCENT_RE = re.compile(r"(?<![\w])([+-]?\d+(?:\.\d+)?)%")
+
+
+def _localize_rendered_number_punctuation(rendered, locale):
+    """Apply locale punctuation to already-rendered numeric values only."""
+    if not isinstance(rendered, str) or locale not in {"fr", "vi"}:
+        return rendered
+
+    thousands_separator = "\u202f" if locale == "fr" else "."
+    rendered = _GROUPED_NUMBER_RE.sub(
+        lambda match: match.group(1).replace(",", thousands_separator),
+        rendered,
+    )
+
+    def percent(match):
+        value = match.group(1).replace(".", ",")
+        return value + ("\u202f%" if locale == "fr" else "%")
+
+    return _PERCENT_RE.sub(percent, rendered)
 
 
 def _t(locale, key, **values):
@@ -1123,4 +1144,4 @@ def render_localized_dashboard_answer(answer, locale):
 
     if _show_notice(answer):
         rendered += "\n\n---\n\n" + _t(locale, "rounded_notice")
-    return rendered
+    return _localize_rendered_number_punctuation(rendered, locale)
