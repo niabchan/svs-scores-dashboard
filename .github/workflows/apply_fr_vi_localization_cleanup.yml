@@ -39,3 +39,5 @@ jobs:
           git add app.py ui_copy.py ask_dashboard/_answer_i18n.py test_answer_i18n.py
           git commit -m 'Polish French and Vietnamese localization'
           git push origin HEAD:agent/multilingual-ask-answers
+
+# Trigger after workflow creation.
