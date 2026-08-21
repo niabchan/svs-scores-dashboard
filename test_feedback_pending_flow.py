@@ -29,10 +29,11 @@ def test_feedback_submit_retries_pending_answer_before_feedback_event():
     submit_marker = 'if st.button(\n                    ask_t("submit_feedback")'
     submit_index = APP_SOURCE.index(submit_marker)
     retry_index = APP_SOURCE.index(
-        "_persist_preview_analytics(pending_answer_event)", submit_index
+        "_persist_preview_analytics(\n                                pending_answer_event",
+        submit_index,
     )
     build_index = APP_SOURCE.index(
-        "build_feedback_event(\n                            confirmed_answer_event_id",
+        "build_feedback_event(\n                                confirmed_answer_event_id",
         submit_index,
     )
     assert retry_index < build_index
