@@ -2,24 +2,30 @@ from pathlib import Path
 import re
 
 
-def replace_once(text, old, new, label):
-    count = text.count(old)
-    if count != 1:
-        raise RuntimeError(f"{label}: expected exactly one match, found {count}")
-    return text.replace(old, new, 1)
+def replace_once_or_confirm(text, old, new, label):
+    old_count = text.count(old)
+    new_count = text.count(new)
+    if old_count == 1 and new_count == 0:
+        return text.replace(old, new, 1)
+    if old_count == 0 and new_count == 1:
+        return text
+    raise RuntimeError(
+        f"{label}: expected one old or one new match, found old={old_count}, new={new_count}"
+    )
 
 
 # Hide analytics retry plumbing from normal answer UI while preserving safe retries.
 path = Path("app.py")
 text = path.read_text(encoding="utf-8")
-start_marker = '        if not last_answer_event_id and isinstance(pending_answer_event, dict):\n'
-end_marker = '    if _truthy_setting("ASK_DASHBOARD_DEBUG_LOG"):\n'
-start = text.find(start_marker)
-end = text.find(end_marker, start)
-if start < 0 or end < 0:
-    raise RuntimeError("could not locate pending feedback UI block")
-old_block = text[start:end]
-new_block = '''        feedback_target_id = last_answer_event_id
+new_marker = "        feedback_target_id = last_answer_event_id\n"
+if new_marker not in text:
+    start_marker = '        if not last_answer_event_id and isinstance(pending_answer_event, dict):\n'
+    end_marker = '    if _truthy_setting("ASK_DASHBOARD_DEBUG_LOG"):\n'
+    start = text.find(start_marker)
+    end = text.find(end_marker, start)
+    if start < 0 or end < 0:
+        raise RuntimeError("could not locate pending feedback UI block")
+    new_block = '''        feedback_target_id = last_answer_event_id
         if not feedback_target_id and isinstance(pending_answer_event, dict):
             feedback_target_id = pending_answer_event.get("event_id")
 
@@ -105,8 +111,8 @@ new_block = '''        feedback_target_id = last_answer_event_id
                         st.warning(ask_t("feedback_delivery_failed"))
 
 '''
-text = text[:start] + new_block + text[end:]
-path.write_text(text, encoding="utf-8")
+    text = text[:start] + new_block + text[end:]
+    path.write_text(text, encoding="utf-8")
 
 
 # Remove obsolete analytics-specific answer UI copy and keep failure text user-facing.
@@ -115,8 +121,8 @@ text = path.read_text(encoding="utf-8")
 for key in ("feedback_pending", "retry_analytics", "retry_failed"):
     pattern = rf'^        "{key}": .*\n'
     text, count = re.subn(pattern, "", text, flags=re.MULTILINE)
-    if count != 5:
-        raise RuntimeError(f"remove {key}: expected 5 locale entries, found {count}")
+    if count not in {0, 5}:
+        raise RuntimeError(f"remove {key}: expected 0 or 5 locale entries, found {count}")
 
 replacements = {
     '"feedback_delivery_failed": "Feedback delivery could not be confirmed. You can retry safely; retries for the same answer will not create another feedback record.",':
@@ -131,5 +137,5 @@ replacements = {
         '"feedback_delivery_failed": "Umpan balik Anda belum dapat disimpan saat ini. Anda dapat mencoba lagi; percobaan ulang untuk jawaban yang sama tidak akan membuat catatan duplikat.",',
 }
 for old, new in replacements.items():
-    text = replace_once(text, old, new, f"replace feedback failure copy: {old[:35]}")
+    text = replace_once_or_confirm(text, old, new, f"replace feedback failure copy: {old[:35]}")
 path.write_text(text, encoding="utf-8")
