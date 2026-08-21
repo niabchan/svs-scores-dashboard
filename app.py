@@ -1032,23 +1032,12 @@ def ask_dashboard_dialog():
         st.subheader(ask_t("explanation"))
         st.markdown(last_rendered_answer)
 
-        if not last_answer_event_id and isinstance(pending_answer_event, dict):
-            st.info(ask_t("feedback_pending"))
-            if st.button(
-                ask_t("retry_analytics"),
-                key=f"ask_dashboard_retry_answer_{pending_answer_event.get('event_id', 'pending')}",
-            ):
-                retry_result = _persist_preview_analytics(pending_answer_event)
-                if retry_result.get("ok"):
-                    st.session_state["ask_dashboard_last_answer_event_id"] = pending_answer_event["event_id"]
-                    st.session_state["ask_dashboard_feedback_submitted_for"] = None
-                    st.session_state.pop("ask_dashboard_pending_answer_event", None)
-                    st.rerun()
-                else:
-                    st.warning(ask_t("retry_failed"))
+        feedback_target_id = last_answer_event_id
+        if not feedback_target_id and isinstance(pending_answer_event, dict):
+            feedback_target_id = pending_answer_event.get("event_id")
 
-        if last_answer_event_id:
-            if st.session_state.get("ask_dashboard_feedback_submitted_for") == last_answer_event_id:
+        if feedback_target_id:
+            if st.session_state.get("ask_dashboard_feedback_submitted_for") == feedback_target_id:
                 st.success(ask_t("feedback_recorded"))
             else:
                 st.markdown(f"#### {ask_t('was_helpful')}")
@@ -1060,7 +1049,7 @@ def ask_dashboard_dialog():
                     ),
                     horizontal=True,
                     label_visibility="collapsed",
-                    key=f"ask_dashboard_feedback_choice_{last_answer_event_id}",
+                    key=f"ask_dashboard_feedback_choice_{feedback_target_id}",
                 )
                 feedback_reason = None
                 if feedback_choice == "not_helpful":
@@ -1070,7 +1059,7 @@ def ask_dashboard_dialog():
                         format_func=lambda value: feedback_reason_label(
                             st.session_state.get("lang", "en"), value
                         ),
-                        key=f"ask_dashboard_feedback_reason_{last_answer_event_id}",
+                        key=f"ask_dashboard_feedback_reason_{feedback_target_id}",
                     )
                     feedback_reason = FEEDBACK_REASON_CODES[reason_key]
                 elif feedback_choice == "helpful":
@@ -1079,27 +1068,52 @@ def ask_dashboard_dialog():
                 feedback_comment = st.text_area(
                     ask_t("optional_comment"),
                     placeholder=ask_t("comment_placeholder"),
-                    key=f"ask_dashboard_feedback_comment_{last_answer_event_id}",
+                    key=f"ask_dashboard_feedback_comment_{feedback_target_id}",
                 )
                 if st.button(
                     ask_t("submit_feedback"),
                     disabled=feedback_choice == "choose",
-                    key=f"ask_dashboard_feedback_submit_{last_answer_event_id}",
+                    key=f"ask_dashboard_feedback_submit_{feedback_target_id}",
                 ):
                     try:
-                        feedback_event = build_feedback_event(
-                            last_answer_event_id,
-                            helpful=feedback_choice == "helpful",
-                            reason=feedback_reason,
-                            comment=feedback_comment.strip() or None,
-                            app_version=analytics_config["app_version"],
-                        )
-                        result = _persist_preview_analytics(feedback_event)
-                        if result.get("ok"):
-                            st.session_state["ask_dashboard_feedback_submitted_for"] = last_answer_event_id
-                            st.rerun()
-                        else:
+                        confirmed_answer_event_id = last_answer_event_id
+                        if (
+                            not confirmed_answer_event_id
+                            and isinstance(pending_answer_event, dict)
+                        ):
+                            retry_result = _persist_preview_analytics(
+                                pending_answer_event
+                            )
+                            if retry_result.get("ok"):
+                                confirmed_answer_event_id = pending_answer_event.get(
+                                    "event_id"
+                                )
+                                if confirmed_answer_event_id:
+                                    st.session_state[
+                                        "ask_dashboard_last_answer_event_id"
+                                    ] = confirmed_answer_event_id
+                                    st.session_state.pop(
+                                        "ask_dashboard_pending_answer_event", None
+                                    )
+
+                        if not confirmed_answer_event_id:
                             st.warning(ask_t("feedback_delivery_failed"))
+                        else:
+                            feedback_event = build_feedback_event(
+                                confirmed_answer_event_id,
+                                helpful=feedback_choice == "helpful",
+                                reason=feedback_reason,
+                                comment=feedback_comment.strip() or None,
+                                app_version=analytics_config["app_version"],
+                            )
+                            result = _persist_preview_analytics(feedback_event)
+                            if result.get("ok"):
+                                st.session_state[
+                                    "ask_dashboard_feedback_submitted_for"
+                                ] = confirmed_answer_event_id
+                                st.rerun()
+                            else:
+                                st.warning(ask_t("feedback_delivery_failed"))
                     except Exception:
                         st.warning(ask_t("feedback_delivery_failed"))
 
