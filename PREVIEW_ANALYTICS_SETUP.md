@@ -1,10 +1,12 @@
-# Ask Dashboard Preview Analytics
+# Ask Dashboard Analytics
 
-This feature is for the separate Streamlit preview app. It is not intended to be merged into production until its privacy, usefulness, and storage approach have been reviewed.
+Ask Dashboard analytics are optional developer/quality-review infrastructure. They are not required for score calculation, routing, answer rendering, or normal dashboard operation.
 
-## Default preview mode
+The feature was originally developed on a separate Streamlit preview app, so some configuration names and historical notes still use the word `preview`. Production may keep analytics disabled without affecting the dashboard.
 
-Without additional secrets, the preview uses:
+## Default local mode
+
+Without additional secrets, analytics can use:
 
 ```toml
 ASK_DASHBOARD_ANALYTICS_MODE = "local"
@@ -18,7 +20,7 @@ Events are appended to:
 
 This is **best-effort persistence only**. It can survive browser sessions while the same Streamlit app instance is running, but the file may be lost when Streamlit restarts or redeploys.
 
-## Privacy behavior
+## Privacy behaviour
 
 Every generated answer can store anonymous routing metadata such as:
 
@@ -28,6 +30,7 @@ Every generated answer can store anonymous routing metadata such as:
 - suggested/custom question type;
 - intent, status, guidance code, and routing source;
 - whether AI fallback was attempted or succeeded;
+- the configured AI routing model when an AI attempt occurred;
 - filter counts, but not selected alliance or player names;
 - question and answer character counts.
 
@@ -52,7 +55,7 @@ ASK_DASHBOARD_ANALYTICS_ADMIN_PASSWORD = "replace-with-a-long-password"
 
 The review shows answer count, feedback count, helpful rate, unsupported rate, detailed events, and a JSON download.
 
-Do not enable the developer log without an admin password on a publicly accessible app.
+Do not enable the developer log without an admin password on a publicly accessible app. Set `ASK_DASHBOARD_DEBUG_LOG = "false"` when the developer review is not needed.
 
 ## Durable webhook mode
 
@@ -62,13 +65,15 @@ For persistence that survives Streamlit restarts, configure an HTTPS endpoint th
 ASK_DASHBOARD_ANALYTICS_MODE = "webhook"
 ASK_DASHBOARD_ANALYTICS_ENDPOINT = "https://example.com/analytics/events"
 ASK_DASHBOARD_ANALYTICS_SHARED_SECRET = "shared-secret"
-ASK_DASHBOARD_APP_VERSION = "preview-pr13"
+ASK_DASHBOARD_APP_VERSION = "v1.0.0"
 ASK_DASHBOARD_ANALYTICS_TOKEN = "optional-bearer-token-for-non-Apps-Script-backends"
 ```
 
+Use a stable deployment identifier appropriate to the running app; `v1.0.0` above is an example for the feature-complete release checkpoint.
+
 The endpoint receives one append-only event at a time. Answer and feedback records are linked through `answer_event_id`; the app does not require update or delete operations.
 
-Webhook failures never prevent Ask Dashboard from returning its answer. Feedback is offered only when the answer event was saved successfully.
+Webhook failures never prevent Ask Dashboard from returning its answer. Feedback delivery safely retries the pending answer event when needed, using stable identifiers so the receiver can remain idempotent.
 
 ## Disable persistence
 
@@ -76,9 +81,14 @@ Webhook failures never prevent Ask Dashboard from returning its answer. Feedback
 ASK_DASHBOARD_ANALYTICS_MODE = "off"
 ```
 
-The existing in-session developer log remains separate and is not durable.
-
+The dashboard and Ask Dashboard remain functional. The existing in-session developer log is separate from durable persistence.
 
 ## Google Sheets receiver
 
 For durable cloud storage with RawEvents, AnswerFeedbackView, Summary, and OptInTextReview sheets, follow `GOOGLE_SHEETS_ANALYTICS_SETUP.md`.
+
+After changes to `analytics/google_apps_script/Code.gs`, the Apps Script deployment must be updated/redeployed before the live derived sheets reflect the new receiver code. In particular, the AI routing model field added during v1 is read from `raw_event_json` into rebuildable derived views; no destructive RawEvents header migration is required.
+
+## v1 close-out status
+
+Analytics configuration is intentionally treated as optional operations tooling rather than a release blocker. If the Google Sheets receiver is in active use, verify its latest deployment once during release smoke testing. If analytics are disabled, no additional setup is required to close the dashboard project.
