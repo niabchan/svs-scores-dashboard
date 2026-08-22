@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import unicodedata
 from typing import Any
 
 from ._legacy import legacy
@@ -200,6 +201,30 @@ _SMALLTALK_PATTERNS = (
 )
 
 
+def _normalize_routing_text(question: str) -> str:
+    """Normalize punctuation without dropping Unicode combining marks.
+
+    The legacy normalizer uses ``\w`` and can strip Thai vowel/tone marks. The
+    routing layer needs the same punctuation folding while keeping combining
+    marks so supported multilingual phrases remain intact.
+    """
+    text = unicodedata.normalize("NFKC", str(question)).casefold()
+    normalized = []
+    for char in text:
+        category = unicodedata.category(char)
+        if (
+            char.isalnum()
+            or char == "_"
+            or char.isspace()
+            or char in "%+-"
+            or category.startswith("M")
+        ):
+            normalized.append(char)
+        else:
+            normalized.append(" ")
+    return " ".join("".join(normalized).split())
+
+
 def _has_contribution_language(text: str) -> bool:
     return bool(_CONTRIBUTION_RE.search(text)) or any(
         phrase in text for phrase in _CONTRIBUTION_PHRASES
@@ -262,7 +287,7 @@ def _is_generic_player_best_request(text: str) -> bool:
 
 def is_obvious_smalltalk_question(question: str) -> bool:
     """Return True only for clear conversational messages that need no AI routing."""
-    text = legacy.normalize_question_text(question)
+    text = _normalize_routing_text(question)
     return any(re.fullmatch(pattern, text) for pattern in _SMALLTALK_PATTERNS)
 
 
@@ -307,7 +332,7 @@ def _is_player_leader_request(text: str) -> bool:
 
 
 def route_dashboard_question(question, known_alliance_names=None):
-    normalized = legacy.normalize_question_text(question)
+    normalized = _normalize_routing_text(question)
     known_alliance_names = known_alliance_names or []
     mentioned = legacy.extract_alliance_names_from_question(question, known_alliance_names)
     scope = _requested_scope(normalized)
