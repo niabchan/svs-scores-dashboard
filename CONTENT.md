@@ -1,68 +1,60 @@
-# Ask Dashboard — Content Design Audit
+# Ask Dashboard — Content Design Status
 
-## Scope of this first pass
+## Current state
 
-This audit reviews the current interface as an operational multilingual dashboard. It does not change calculations, question routing, analytics collection, or metric meaning.
+The initial content audit has been implemented through the multilingual Ask Dashboard and routing work. This file now records the v1 content decisions, remaining capability boundary, and deferred maintenance rather than treating already-resolved findings as open defects.
 
-## Priority findings
+The dashboard is an operational multilingual analytics interface. Content changes must not alter score calculations, metric meaning, privacy semantics, or routing contracts unless that product change is explicitly intended and tested.
 
-### P0 — Multilingual shell, English Ask Dashboard
+## Completed v1 content work
 
-The main dashboard supports English, Spanish, French, Vietnamese, and Indonesian, but the Ask Dashboard dialog still contains hard-coded English controls, privacy text, feedback controls, suggested questions, and explanation headings. Generated answers are also English-first.
+### Multilingual Ask Dashboard shell and answers
 
-This creates a false expectation that changing the UI language changes the complete experience. Until multilingual questions and answers are supported, the interface should state the language limitation clearly in every locale.
+Ask Dashboard controls, privacy copy, feedback controls, suggested-question labels, and deterministic generated explanations are localized for English, Spanish, French, Vietnamese, and Indonesian.
 
-### P1 — Repeated explanation competes with the data
+Suggested-question backend values remain canonical English/internal values so display localization does not mutate routing or analytics contracts. Final deterministic answer rendering follows the selected dashboard locale after the structured answer has been calculated.
 
-Several views repeat similar ideas across captions, chart headings, and reading guides. Repetition should be reviewed by function rather than removed mechanically: rendered review has shown that matching tab labels and in-page headings can improve orientation in long dashboard views.
+### Free-text capability wording
 
-Recommended treatment:
+Free-text routing is no longer strictly English-only. Common tested best-player and best-contributor wording is recognized across the five interface languages, with additional multilingual contribution/grouping vocabulary and selected Thai custom-question coverage.
 
-- Keep task-oriented in-page headings when they materially help orientation.
-- Keep one short visible sentence only when interpretation is not obvious.
-- Move instructions, examples, and calculation details into a collapsed help expander when they do not need to remain visible.
-- Avoid repeating “current sidebar filters” under every chart; explain scope once and show exceptions locally.
-- When one shared caption already explains named child charts, keep the chart headings but remove repeated per-chart scope captions.
+English still has the broadest deterministic free-text coverage. The UI and documentation must therefore avoid both extremes:
 
-### P1 — Translation content and Streamlit presentation are coupled
+- do not claim that custom questions must be written in English;
+- do not claim unrestricted multilingual natural-language understanding.
 
-The `TEXT` dictionary is embedded in `app.py`, while many new Ask Dashboard strings bypass it entirely. This makes key parity, review, translation, and reuse harder.
+Preferred capability wording: common questions can work in several languages, while English currently has the broadest free-text coverage. Generated deterministic explanations follow the selected dashboard language.
 
-Recommended treatment:
+### Responsive chart references
 
-- Move locale dictionaries into a dedicated module or structured locale files in a later refactor.
-- Route every user-visible string through one translation function.
-- Keep canonical English text as the source of meaning.
-- Add automated key and placeholder checks before moving files.
-- Treat code-like translation keys appearing in the UI as a localization defect; literal `t("...")` references should resolve to canonical English keys before locale parity is checked.
+Player Selection Insight may place Before Exclusion and After Exclusion charts side by side or stack them on narrow screens. Copy identifies those charts by their visible names rather than by left/right or top/bottom placement.
 
-### P1 — Responsive copy must not depend on left/right placement
+Repeated per-chart scope remarks were removed after one shared explanation became sufficient. The chart headings remain because rendered review showed that they improve orientation.
 
-Player Selection Insight can render the Before Exclusion and After Exclusion charts side by side on wider screens but stack them vertically on mobile. Copy that identifies them as “left” and “right” is therefore inaccurate on narrow viewports.
+### Translation and empty-state quality
 
-Recommended treatment: refer to responsive charts and controls by their visible names rather than by screen position. The score-balance caption should identify the **Before Exclusion** and **After Exclusion** charts in every supported locale.
+- locale key and placeholder parity are covered by automated tests;
+- literal translation-key references are checked so internal keys do not leak into the UI;
+- exclusion empty states use human-readable localized copy;
+- framework-owned **Select all** remains an intentional exact English UI reference inside translated ranking guidance because users must match the label Streamlit actually renders.
 
-### P1 — `Select all` is an intentional exact UI reference
+### Ask Dashboard answer hierarchy
 
-The ranking guide includes the English phrase **Select all** inside translated prose because this is the literal Streamlit multiselect control text that the user must find. That framework-owned label is not currently localized by the project.
+Answers lead with the result and then add only the context required to interpret it. Broad player “best” questions use Net Score as the dashboard's default overall-result measure, while contribution questions remain separate and use positive net contribution. Copy must state metric choices without converting them into judgments about ability or character.
 
-Recommended treatment: translate the surrounding instruction but preserve **Select all** exactly while the rendered control uses that text. Revisit this only if the control becomes project-localizable or is replaced.
+## Remaining v1 capability boundary
 
-### P2 — Presentation markup lives inside translations
+### Free-text understanding is tested, not universal
 
-Some values include `###` or `**`. This forces translators to preserve Markdown syntax and makes it harder to change heading level without editing every locale.
+The deterministic router contains tested multilingual patterns but does not implement a general tokenizer or full natural-language grammar for every supported language. AI fallback can classify unfamiliar wording into the existing intent contract when enabled, but it does not calculate scores or generate final narrative answers.
 
-Recommended treatment: store plain text in translations and apply `st.subheader`, `st.markdown`, or other presentation in code.
+For this reason, capability copy should say that English has the broadest free-text coverage rather than promising complete multilingual question understanding.
 
-### P2 — Privacy copy is important but long
+### Analytics is optional infrastructure
 
-The analytics and privacy explanation is correctly placed in a collapsed expander, but it remains English-only. Preserve its meaning and opt-in details; localize it rather than shortening it aggressively.
+Usage analytics and feedback are not required for the dashboard to calculate or display answers. Persistent analytics may be disabled. Custom question and generated answer text are stored only when the user explicitly opts in for that question.
 
-### P2 — Free-text language capability is not explicit
-
-The rule-based question router is built around English terms. The current language selector can therefore imply support that the free-text router does not yet provide.
-
-Recommended treatment: separate **interface language** from **question language support** in the copy until multilingual routing is implemented and tested.
+Developer/admin analytics controls are not part of the normal user experience and must remain protected when enabled.
 
 ## Content tiers
 
@@ -74,6 +66,7 @@ Recommended treatment: separate **interface language** from **question language 
 - Chart or table title when the visual needs one
 - Status, empty-state summary, and primary action
 - One sentence needed to prevent a likely misinterpretation
+- A concise custom-question capability note when relevant
 
 ### Tier 2 — Contextual help
 
@@ -91,7 +84,7 @@ Use a tooltip, concise caption, or collapsed expander near the relevant componen
 - Full metric glossary
 - Calculation methods
 - Data limitations
-- Supported and unsupported Ask Dashboard questions
+- Supported and unsupported Ask Dashboard behaviour
 - Privacy and analytics details
 - Translation and terminology guidance
 
@@ -107,7 +100,7 @@ Keep this material available without placing it in the main scanning path.
 - **Net per Player:** alliance total net score divided by the number of included players represented in that summary.
 - **Excluded Player:** a player removed from the selected-group comparison, not removed from the source data.
 
-## Copy pattern
+## Copy patterns
 
 Prefer:
 
@@ -131,13 +124,16 @@ Instead of referring to the same charts as left/right or top/bottom.
 
 For empty states, describe the actual condition that prevents a visual from rendering rather than exposing an internal key or claiming broadly that no data exists. For the exclusion pie charts, distinguish the current filter scope from the currently selected players.
 
-## Implementation order
+## Deferred maintenance after v1
 
-1. Maintain key-parity, literal translation-reference, and placeholder tests.
-2. Maintain product, design, content, and localization context files.
-3. Inventory hard-coded user-visible strings in `app.py` and `ask_dashboard.py`.
-4. Localize the Ask Dashboard shell and state its question-language limitation.
-5. Consolidate genuinely redundant captions while preserving headings that improve orientation.
-6. Move extended guidance into contextual expanders where useful.
-7. Separate locale data from Streamlit presentation.
-8. Run rendered reviews for all five locales and narrow viewports.
+These are not release blockers:
+
+- move the main locale dictionaries out of `app.py` when a larger localization refactor is justified;
+- move remaining Markdown presentation syntax out of translation values;
+- refactor the compatibility package around the historical root `ask_dashboard.py` only with dedicated regression coverage;
+- consider Thai word tokenization only if future characterization tests demonstrate segmentation-specific failures;
+- continue natural-language coverage based on real questions and feedback rather than expanding phrase lists speculatively.
+
+## Close-out maintenance rule
+
+After v1, prefer data updates, bug fixes, dependency/security maintenance, and evidence-based routing additions over broad feature expansion. A new feature should solve a demonstrated user problem rather than keep the project permanently “almost finished.”
