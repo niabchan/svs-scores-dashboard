@@ -204,7 +204,7 @@ _SMALLTALK_PATTERNS = (
 def _normalize_routing_text(question: str) -> str:
     """Normalize punctuation without dropping Unicode combining marks.
 
-    The legacy normalizer uses ``\w`` and can strip Thai vowel/tone marks. The
+    The legacy word-character normalizer can strip Thai vowel/tone marks. The
     routing layer needs the same punctuation folding while keeping combining
     marks so supported multilingual phrases remain intact.
     """
