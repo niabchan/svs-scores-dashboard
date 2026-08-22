@@ -125,7 +125,7 @@ python -m pip install -r requirements-test.txt
 python -m pytest -q
 ```
 
-The v1 close-out baseline is **379 passing tests** before the final documentation/CI cleanup changes in this repository close-out.
+Final v1 close-out CI installs the production-pinned runtime environment, compiles the full Python tree, and passes **379 tests**.
 
 ## Project documentation
 
