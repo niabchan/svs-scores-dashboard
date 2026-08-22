@@ -1,3 +1,2 @@
-pandas
+-r requirements.txt
 pytest
-openai>=2.46.0,<3.0.0

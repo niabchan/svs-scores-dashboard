@@ -32,14 +32,29 @@ Do not show all three layers at once unless the user is in a dedicated help or r
 - Empty and error states should say what happened and what the user can do next.
 - Preserve the distinction among Score Gained, Score Lost, Net Score, Positive Contribution, and Negative Contribution.
 - Do not use copy that implies intent, blame, skill, or behaviour from score data.
+- Capability copy must distinguish interface language, rendered-answer language, and free-text routing coverage.
 
 ## Multilingual resilience
 
+- The supported interface locales are English, Spanish, French, Vietnamese, and Indonesian.
 - Design for the longest supported translation, not only English.
 - Allow controls and headings to wrap without obscuring adjacent values.
 - Never use fixed widths that only fit English labels.
 - Test long player and alliance names, large negative numbers, empty states, and narrow screens.
 - Keep presentation markup out of translation values where practical; the component should decide whether text is a heading or bold label.
+- Generated deterministic answers should follow the selected UI locale without translating player or alliance names.
+- Do not imply unrestricted multilingual free-text support. English has the broadest deterministic routing coverage; common tested patterns also exist in the other supported languages, plus selected Thai custom-question wording.
+
+## Ask Dashboard interaction model
+
+Ask Dashboard should feel like a deterministic analytics feature with a language-understanding assist, not like an unconstrained chatbot.
+
+- Run deterministic rules first.
+- Use AI fallback only when enabled and local routing does not confidently handle the wording.
+- Keep calculation and final rendering in Python.
+- Show direct results before explanatory context.
+- Preserve the current scope visibly enough that the answer can be interpreted without guessing which filters were active.
+- Keep privacy and analytics controls understandable without exposing developer infrastructure in the normal interaction path.
 
 ## Visual review sequence
 
@@ -53,10 +68,17 @@ When Impeccable or another design reviewer is available, review the rendered Str
 
 Do not let a visual-review tool alter metric definitions, calculations, routing behaviour, privacy meaning, or data limitations without an explicit product decision.
 
-## Current design risks
+## Closed v1 design decisions
 
-- The main translation dictionary and presentation logic are coupled in `app.py`.
-- Repeated headings should be judged by structural role, not removed mechanically; rendered review has shown that some matching tab/in-page headings improve orientation.
-- Contribution views use overlapping captions and reading guides.
-- Ask Dashboard controls, privacy copy, feedback controls, suggested questions, and generated explanations are currently English-first inside a multilingual shell.
-- Some translation values contain Markdown heading or bold syntax, coupling content to presentation.
+- Ask Dashboard shell, privacy copy, feedback controls, suggested-question labels, and deterministic generated explanations are localized for all five supported interface locales.
+- Before Exclusion / After Exclusion guidance identifies charts by visible names rather than left/right placement.
+- Matching tab and in-page headings are intentionally retained where rendered review showed that they improve orientation.
+- Repeated per-chart scope remarks under the exclusion charts were removed after the shared section explanation made them redundant.
+- Dense alliance-summary table labels may be shorter than canonical terminology when header help preserves the full metric meaning.
+
+## Deferred maintenance, not v1 blockers
+
+- The main `TEXT` dictionary remains coupled to presentation logic in `app.py`.
+- Some translation values still contain Markdown heading or bold syntax.
+- `ask_dashboard/` remains a compatibility layer around the historical root-level `ask_dashboard.py`; a larger direct refactor can be considered only if future maintenance justifies the regression risk.
+- A dedicated Thai tokenizer such as PyThaiNLP is not required by the routing failures observed so far. Reconsider it only if future tests identify genuine word-segmentation failures rather than Unicode-normalization or vocabulary gaps.
