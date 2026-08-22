@@ -32,6 +32,31 @@ SCORE_DERIVED_INTENTS = set(legacy.SCORE_DERIVED_INTENTS) | {
 }
 
 _CONTRIBUTION_RE = re.compile(r"\bcontribut(?:e|ed|es|ing|ion|ions|or|ors)?\b")
+_CONTRIBUTION_PHRASES = {
+    # Spanish
+    "contribuyente",
+    "contribuyentes",
+    "contribuyó",
+    "contribuyeron",
+    "contribución",
+    # French
+    "contributeur",
+    "contributeurs",
+    "contributrice",
+    "contributrices",
+    "contribué",
+    "contribution",
+    # Vietnamese
+    "đóng góp",
+    "người đóng góp",
+    # Indonesian
+    "kontributor",
+    "kontribusi",
+    "berkontribusi",
+    # Thai (custom questions are accepted even though Thai is not a UI locale)
+    "มีส่วนร่วม",
+    "ผู้มีส่วนร่วม",
+}
 _POSITIVE_PHRASES = {"positive contribution", "positive score", "server positive score"}
 _GROUPED_PHRASES = {
     "within each alliance",
@@ -40,6 +65,19 @@ _GROUPED_PHRASES = {
     "for every alliance",
     "each selected alliance",
     "every selected alliance",
+    # Spanish
+    "cada alianza",
+    "por alianza",
+    # French
+    "chaque alliance",
+    "par alliance",
+    # Vietnamese
+    "mỗi liên minh",
+    # Indonesian
+    "setiap aliansi",
+    "per aliansi",
+    # Thai
+    "แต่ละพันธมิตร",
 }
 _SERVER_PHRASES = {
     "server",
@@ -65,6 +103,95 @@ _PLAYER_BALANCE_PHRASES = {
     "finished furthest ahead",
     "finished the furthest ahead",
 }
+_PLAYER_SUBJECT_WORDS = {
+    "who",
+    "player",
+    "players",
+    "quién",
+    "quien",
+    "jugador",
+    "jugadores",
+    "qui",
+    "joueur",
+    "joueurs",
+    "ai",
+    "siapa",
+    "pemain",
+    "ใคร",
+    "ผู้เล่น",
+}
+_PLAYER_SUBJECT_PHRASES = {
+    "người chơi",
+    "ผู้เล่น",
+}
+_ALLIANCE_SUBJECT_PHRASES = {
+    "alliance",
+    "alliances",
+    "alianza",
+    "alianzas",
+    "liên minh",
+    "aliansi",
+    "พันธมิตร",
+}
+_GENERIC_PLAYER_BEST_PHRASES = {
+    # English
+    "best player",
+    "top player",
+    "strongest player",
+    "who is the best",
+    "who s the best",
+    # Spanish
+    "mejor jugador",
+    "quién es el mejor",
+    "quien es el mejor",
+    # French
+    "meilleur joueur",
+    "qui est le meilleur",
+    # Vietnamese
+    "người chơi tốt nhất",
+    "người chơi giỏi nhất",
+    "ai là người giỏi nhất",
+    "ai là người chơi tốt nhất",
+    # Indonesian
+    "pemain terbaik",
+    "siapa yang terbaik",
+    # Thai
+    "ใครเก่งที่สุด",
+    "ใครดีที่สุด",
+    "ผู้เล่นที่เก่งที่สุด",
+    "ผู้เล่นเก่งที่สุด",
+}
+_CONTRIBUTOR_LEADER_PHRASES = {
+    # English
+    "top contributor",
+    "best contributor",
+    "highest contributor",
+    "contributed the most",
+    "contributed most",
+    # Spanish
+    "mejor contribuyente",
+    "principal contribuyente",
+    "contribuyó más",
+    "contribuyo más",
+    "más contribuyó",
+    "mas contribuyo",
+    # French
+    "meilleur contributeur",
+    "meilleure contributrice",
+    "plus contribué",
+    "plus contribue",
+    # Vietnamese
+    "đóng góp nhiều nhất",
+    "người đóng góp nhiều nhất",
+    "người đóng góp tốt nhất",
+    # Indonesian
+    "kontributor terbaik",
+    "berkontribusi paling banyak",
+    "kontribusi paling besar",
+    # Thai
+    "มีส่วนร่วมมากที่สุด",
+    "ผู้มีส่วนร่วมที่ดีที่สุด",
+}
 _SMALLTALK_PATTERNS = (
     r"^(?:hello|hi|hey)(?: there)?(?: how are you)?$",
     r"^how are you$",
@@ -74,7 +201,20 @@ _SMALLTALK_PATTERNS = (
 
 
 def _has_contribution_language(text: str) -> bool:
-    return bool(_CONTRIBUTION_RE.search(text))
+    return bool(_CONTRIBUTION_RE.search(text)) or any(
+        phrase in text for phrase in _CONTRIBUTION_PHRASES
+    )
+
+
+def _has_player_subject(text: str) -> bool:
+    words = set(text.split())
+    return bool(words.intersection(_PLAYER_SUBJECT_WORDS)) or any(
+        phrase in text for phrase in _PLAYER_SUBJECT_PHRASES
+    )
+
+
+def _has_alliance_subject(text: str) -> bool:
+    return any(phrase in text for phrase in _ALLIANCE_SUBJECT_PHRASES)
 
 
 def _requested_scope(text: str) -> str:
@@ -106,6 +246,18 @@ def _is_player_net_balance_request(text: str) -> bool:
     )
     balance_language = any(phrase in text for phrase in _PLAYER_BALANCE_PHRASES)
     return player_subject and leader_language and balance_language
+
+
+def _is_generic_player_best_request(text: str) -> bool:
+    """Treat broad 'best player/person' wording as a player net-score request.
+
+    Net score is the dashboard's established default for broad overall performance.
+    The phrases cover the five UI languages plus Thai, which is accepted as custom
+    free text even though the interface itself has no Thai locale.
+    """
+    if _has_contribution_language(text) or _has_alliance_subject(text):
+        return False
+    return any(phrase in text for phrase in _GENERIC_PLAYER_BEST_PHRASES)
 
 
 def is_obvious_smalltalk_question(question: str) -> bool:
@@ -145,15 +297,12 @@ def _is_alliance_leader_request(text: str) -> bool:
 def _is_player_leader_request(text: str) -> bool:
     if not _has_contribution_language(text) or _is_grouped_request(text):
         return False
-    words = set(text.split())
-    player_subject = bool(
-        "who" in words
-        or "player" in words
-        or re.search(r"\b(?:top|best|highest)\s+contributor\b", text)
+    player_subject = _has_player_subject(text) or any(
+        phrase in text for phrase in _CONTRIBUTOR_LEADER_PHRASES
     )
     leader_language = bool(
         re.search(r"\b(?:most|top|best|highest|lead|leads|leader|first)\b", text)
-    )
+    ) or any(phrase in text for phrase in _CONTRIBUTOR_LEADER_PHRASES)
     return player_subject and leader_language
 
 
@@ -179,7 +328,9 @@ def route_dashboard_question(question, known_alliance_names=None):
         # this intentionally narrow so analytical questions containing "help"
         # still proceed through normal rule/API routing.
         return legacy._intent_contract("dashboard_help")
-    if _is_player_net_balance_request(normalized):
+    if _is_player_net_balance_request(normalized) or _is_generic_player_best_request(
+        normalized
+    ):
         return legacy._intent_contract(
             "player_net_score_leader", {"alliance_names": mentioned}
         )
