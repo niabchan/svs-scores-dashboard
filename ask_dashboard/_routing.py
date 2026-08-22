@@ -161,6 +161,9 @@ _GENERIC_PLAYER_BEST_PHRASES = {
     "ใครดีที่สุด",
     "ผู้เล่นที่เก่งที่สุด",
     "ผู้เล่นเก่งที่สุด",
+    "ใครทำคะแนนสุทธิสูงที่สุด",
+    "ใครทำคะแนนดีที่สุด",
+    "มีใครทำคะแนนดีที่สุด",
 }
 _CONTRIBUTOR_LEADER_PHRASES = {
     # English
@@ -225,25 +228,30 @@ def _normalize_routing_text(question: str) -> str:
     return " ".join("".join(normalized).split())
 
 
+def _contains_normalized_phrase(text: str, phrases) -> bool:
+    """Match phrase dictionaries in the same Unicode form as routed text."""
+    return any(_normalize_routing_text(phrase) in text for phrase in phrases)
+
+
 def _has_contribution_language(text: str) -> bool:
-    return bool(_CONTRIBUTION_RE.search(text)) or any(
-        phrase in text for phrase in _CONTRIBUTION_PHRASES
+    return bool(_CONTRIBUTION_RE.search(text)) or _contains_normalized_phrase(
+        text, _CONTRIBUTION_PHRASES
     )
 
 
 def _has_player_subject(text: str) -> bool:
     words = set(text.split())
-    return bool(words.intersection(_PLAYER_SUBJECT_WORDS)) or any(
-        phrase in text for phrase in _PLAYER_SUBJECT_PHRASES
+    return bool(words.intersection(_PLAYER_SUBJECT_WORDS)) or _contains_normalized_phrase(
+        text, _PLAYER_SUBJECT_PHRASES
     )
 
 
 def _has_alliance_subject(text: str) -> bool:
-    return any(phrase in text for phrase in _ALLIANCE_SUBJECT_PHRASES)
+    return _contains_normalized_phrase(text, _ALLIANCE_SUBJECT_PHRASES)
 
 
 def _requested_scope(text: str) -> str:
-    return "server" if any(phrase in text for phrase in _SERVER_PHRASES) else "current_filters"
+    return "server" if _contains_normalized_phrase(text, _SERVER_PHRASES) else "current_filters"
 
 
 def _is_metric_definition_request(text: str) -> bool:
@@ -269,7 +277,7 @@ def _is_player_net_balance_request(text: str) -> bool:
     leader_language = bool(
         words.intersection({"top", "best", "highest", "strongest", "furthest"})
     )
-    balance_language = any(phrase in text for phrase in _PLAYER_BALANCE_PHRASES)
+    balance_language = _contains_normalized_phrase(text, _PLAYER_BALANCE_PHRASES)
     return player_subject and leader_language and balance_language
 
 
@@ -282,7 +290,7 @@ def _is_generic_player_best_request(text: str) -> bool:
     """
     if _has_contribution_language(text) or _has_alliance_subject(text):
         return False
-    return any(phrase in text for phrase in _GENERIC_PLAYER_BEST_PHRASES)
+    return _contains_normalized_phrase(text, _GENERIC_PLAYER_BEST_PHRASES)
 
 
 def is_obvious_smalltalk_question(question: str) -> bool:
@@ -293,7 +301,7 @@ def is_obvious_smalltalk_question(question: str) -> bool:
 
 def _is_grouped_request(text: str) -> bool:
     words = set(text.split())
-    if any(phrase in text for phrase in _GROUPED_PHRASES):
+    if _contains_normalized_phrase(text, _GROUPED_PHRASES):
         return True
     if words.intersection({"show", "list", "rank", "ranking"}) and words.intersection(
         {"contributors", "players"}
@@ -306,7 +314,7 @@ def _is_grouped_request(text: str) -> bool:
 
 
 def _is_alliance_leader_request(text: str) -> bool:
-    positive_metric = any(phrase in text for phrase in _POSITIVE_PHRASES)
+    positive_metric = _contains_normalized_phrase(text, _POSITIVE_PHRASES)
     if not (_has_contribution_language(text) or positive_metric):
         return False
     alliance_subject = bool(
@@ -322,12 +330,12 @@ def _is_alliance_leader_request(text: str) -> bool:
 def _is_player_leader_request(text: str) -> bool:
     if not _has_contribution_language(text) or _is_grouped_request(text):
         return False
-    player_subject = _has_player_subject(text) or any(
-        phrase in text for phrase in _CONTRIBUTOR_LEADER_PHRASES
+    player_subject = _has_player_subject(text) or _contains_normalized_phrase(
+        text, _CONTRIBUTOR_LEADER_PHRASES
     )
     leader_language = bool(
         re.search(r"\b(?:most|top|best|highest|lead|leads|leader|first)\b", text)
-    ) or any(phrase in text for phrase in _CONTRIBUTOR_LEADER_PHRASES)
+    ) or _contains_normalized_phrase(text, _CONTRIBUTOR_LEADER_PHRASES)
     return player_subject and leader_language
 
 

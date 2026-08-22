@@ -153,3 +153,58 @@ def test_reported_thai_best_question_resolves_player_not_alliance():
     )
     assert answer["intent"] == "player_net_score_leader"
     assert answer["metrics"]["leaders"][0]["player_name"] == "Player A"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "ใครเก่งที่สุด",
+        "รอบนี้ใครเก่งที่สุด",
+        "ถ้าดูจากคะแนนใครเก่งที่สุด",
+        "ถ้าดูจากคะแนนแล้ว ใครเก่งที่สุด?",
+        "ใครทำคะแนนสุทธิสูงที่สุด",
+    ],
+)
+def test_thai_best_player_natural_variants_route_to_player_net_leader(question):
+    contract = route_dashboard_question(question, ["MBV", "NoM", "SnS", "TDA"])
+    assert contract["intent"] == "player_net_score_leader"
+    assert contract["parameters"] == {"alliance_names": []}
+    assert contract["source"] == "rule"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "ใครมีส่วนร่วมมากที่สุด",
+        "รอบนี้ใครมีส่วนร่วมมากที่สุด",
+        "ถ้าดูจากผลงาน ใครมีส่วนร่วมมากที่สุด?",
+    ],
+)
+def test_thai_best_contributor_natural_variants_route_to_single_player(question):
+    contract = route_dashboard_question(question, ["MBV", "NoM", "SnS", "TDA"])
+    assert contract["intent"] == "top_contributors"
+    assert contract["parameters"] == {
+        "alliance_names": [],
+        "mode": "leader",
+    }
+    assert contract["source"] == "rule"
+
+
+def test_thai_named_alliance_best_player_routes_with_alliance_scope():
+    contract = route_dashboard_question(
+        "TDA มีใครทำคะแนนดีที่สุด",
+        ["MBV", "NoM", "SnS", "TDA"],
+    )
+    assert contract["intent"] == "player_net_score_leader"
+    assert contract["parameters"] == {"alliance_names": ["TDA"]}
+    assert contract["source"] == "rule"
+
+
+def test_thai_named_alliance_best_contributor_preserves_named_scope():
+    contract = route_dashboard_question(
+        "ใน TDA ใครมีส่วนร่วมมากที่สุด",
+        ["MBV", "NoM", "SnS", "TDA"],
+    )
+    assert contract["intent"] == "top_contributors"
+    assert contract["parameters"] == {"alliance_names": ["TDA"]}
+    assert contract["source"] == "rule"
