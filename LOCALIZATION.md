@@ -14,22 +14,31 @@ English is the canonical source for product meaning. A translation may be longer
 
 The interface and deterministic Ask Dashboard explanations support English, Spanish, French, Vietnamese, and Indonesian. Final answer rendering follows the selected dashboard UI locale after the structured answer has been calculated.
 
-Free-text question routing remains English-first, so custom questions currently work best when entered in English. Suggested questions keep their canonical English/internal values for routing and are localized only for display. Do not imply full multilingual question understanding until routing tests exist for those languages.
+Free-text routing is broader than the original English-only implementation but remains intentionally bounded. Common tested best-player and best-contributor wording is supported across the five interface languages, together with additional multilingual contribution/grouping vocabulary. Selected Thai custom-question wording is also covered by deterministic rules and Unicode-safe routing tests.
 
-Localized answer rendering is a presentation layer only: it does not send score rows, player names, alliance names, rankings, or calculated values to a translation model. Player and alliance names remain unchanged, and metric meanings and scope boundaries must match the English canonical answer.
+English currently has the broadest deterministic free-text coverage. Do not tell users that all custom questions must be written in English, but also do not imply unrestricted multilingual natural-language understanding. Preferred wording is that common questions can work in several languages while English has the broadest free-text coverage.
 
-Keep localized limitation copy near the custom-question input so users understand this distinction before submitting a free-text question.
+Suggested questions keep their canonical English/internal values for routing and analytics and are localized only for display. Deterministic answer rendering is a presentation layer only: it does not send score rows, player names, alliance names, rankings, or calculated values to a translation model.
+
+When AI fallback is enabled, it receives only the custom question, supported intent/parameter definitions, and currently known alliance names. It classifies into the existing intent contract; Python validates, calculates, and renders the final answer. Player and alliance names remain unchanged.
+
+## Thai custom-question note
+
+Thai is not an interface locale, but a focused set of Thai custom-question patterns is regression-tested. Routing normalization must preserve Unicode combining marks and normalize phrase dictionaries through the same Unicode path as incoming questions.
+
+The project does not currently depend on a Thai tokenizer. Characterization tests showed that the observed failures around wording such as `ทำคะแนน` came from Unicode representation differences after NFKC normalization, not from a demonstrated word-segmentation failure. Consider a tokenizer such as PyThaiNLP only if future tests isolate segmentation as the actual cause.
 
 ## Key rules
 
-- Every locale must contain exactly the canonical English key set.
-- Do not add a key to one locale only.
+- Every interface locale must contain exactly the canonical English key set.
+- Do not add a key to one interface locale only.
 - Values must be non-empty strings.
 - Preserve named placeholders and format fields exactly across locales.
 - Keep user-supplied player names and alliance names unchanged.
 - When a framework-generated control label cannot be localized, preserve the exact label the user will see and translate the surrounding instruction.
 - Document every framework-owned label exception so it is not mistaken for accidental language leakage.
 - Keep Markdown and component styling outside translation values where practical.
+- Distinguish interface-language support, answer-rendering support, and free-text-routing support in capability claims.
 
 ## Framework-owned label exception
 
@@ -63,6 +72,7 @@ For this exception:
 
 - Never translate **Score Gained** as “positive score” or **Score Lost** as “negative score.”
 - Do not turn score results into claims about a person's motives, ability, or conduct.
+- A broad “best player” result may use Net Score as the dashboard default, but wording should make clear that this is a metric choice rather than an objective judgment about the player.
 - When a chart uses absolute values for negative share, state that only the chart share uses magnitudes; the underlying net impact is negative.
 - Keep “full server,” “filtered scope,” and “selected players” distinct.
 - Preserve approximation language for periods affected by rounded in-game values.
@@ -82,16 +92,19 @@ For each new or changed user-visible string:
 1. Is it Tier 1, Tier 2, or Tier 3 content as defined in `CONTENT.md`?
 2. Does it add information instead of repeating the heading or label?
 3. Does the English source preserve metric and scope precision?
-4. Are all five locale keys present?
+4. Are all five interface-locale keys present?
 5. Are placeholders identical across locales?
 6. Does it avoid translating names and game identifiers?
 7. Is any untranslated UI term a documented exact control label rather than accidental leakage?
 8. Does it fit narrow layouts when rendered, including wrapping?
-9. Has a fluent reviewer checked naturalness where practical?
+9. Does any capability claim stay within tested routing coverage?
+10. Has a fluent reviewer checked naturalness where practical?
 
 ## Test policy
 
 Automated tests should block missing or extra locale keys, missing locale dictionaries, blank values, placeholder mismatches, and duplicate locale codes.
+
+Routing tests should cover representative multilingual wording instead of relying only on source vocabulary inspection. Unicode regression tests should protect Thai combining marks and canonically equivalent representations used in phrase matching.
 
 Automated checks should not reject a documented exact framework label such as **Select all** merely because it remains English inside translated guidance.
 
