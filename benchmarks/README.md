@@ -58,7 +58,7 @@ python benchmarks/compare_qwen38_intent.py --dry-run
 
 It prints the local rule result for every case and the planned number of live calls.
 
-With the default 24 cases, two models, and one repetition, a live run makes **48 API calls**.
+With the default 24 cases, two models, and one repetition, a live run makes **48 API calls**. The runner alternates which model goes first for each case and waits 0.25 seconds between calls by default to reduce systematic ordering bias and avoid an unnecessarily tight request burst.
 
 ## Live run
 
@@ -119,6 +119,8 @@ Both models receive the same:
 - `enable_thinking=False`;
 - OpenAI-compatible chat-completions transport;
 - local validation/decoding logic.
+
+The runner alternates model order by benchmark case so one model is not always the second request after a possible warm-up. It also pauses 0.25 seconds between calls by default. Both controls are recorded in the report metadata.
 
 The script reuses the private request/decoder helpers from `openai_intent.py` on purpose. If production intent prompting changes, the benchmark should be reviewed at the same time so it continues to test the same interface.
 
