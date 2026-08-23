@@ -14,6 +14,17 @@ def test_metric_css_scales_with_card_width_and_keeps_full_value():
     assert 'text-overflow: clip !important' in css
 
 
+def test_metric_rows_use_equal_card_widths_above_mobile_breakpoint():
+    css = ui_responsive.RESPONSIVE_METRIC_CSS
+
+    assert '@media (min-width: 641px)' in css
+    assert '[data-testid="stHorizontalBlock"]:has(' in css
+    assert '> [data-testid="stColumn"] [data-testid="stMetric"]' in css
+    assert 'flex: 1 1 0 !important' in css
+    assert 'width: 0 !important' in css
+    assert 'min-width: 0 !important' in css
+
+
 def test_install_wraps_page_config_and_emits_css_once_per_call(monkeypatch):
     calls = []
 
