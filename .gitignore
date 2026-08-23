@@ -28,6 +28,7 @@ Thumbs.db
 *.jsonl
 *.log
 /tmp/
+benchmark_runs/
 
 # Build / packaging
 build/
