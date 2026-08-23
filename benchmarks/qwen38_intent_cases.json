@@ -1,0 +1,339 @@
+{
+  "benchmark_version": 1,
+  "known_alliance_names": [
+    "MBV",
+    "NoM",
+    "SnS",
+    "TDA"
+  ],
+  "cases": [
+    {
+      "id": "overview_en_01",
+      "category": "alliance_score_overview",
+      "language": "en",
+      "question": "Which group seems to have carried the round when you look across the scorecard as a whole?",
+      "expected": {
+        "intent": "alliance_score_overview",
+        "parameters": {},
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "exclude_en_01",
+      "category": "alliance_exclusion_total_net",
+      "language": "en",
+      "question": "Rework the server total as though TDA never counted.",
+      "expected": {
+        "intent": "alliance_exclusion_total_net",
+        "parameters": {
+          "excluded_alliances": [
+            "TDA"
+          ]
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "limitation_en_01",
+      "category": "dashboard_limitation",
+      "language": "en",
+      "question": "Can this dashboard tell whether someone was throwing the match?",
+      "expected": {
+        "intent": "dashboard_limitation",
+        "parameters": {},
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "help_en_01",
+      "category": "dashboard_help",
+      "language": "en",
+      "question": "What kinds of things is this question box actually able to answer for me?",
+      "expected": {
+        "intent": "dashboard_help",
+        "parameters": {},
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "overview_es_01",
+      "category": "alliance_score_overview",
+      "language": "es",
+      "question": "¿Qué alianza salió mejor parada si miramos el panorama completo de puntuaciones?",
+      "expected": {
+        "intent": "alliance_score_overview",
+        "parameters": {},
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "player_es_01",
+      "category": "player_net_score_leader",
+      "language": "es",
+      "question": "¿Qué jugador terminó más por delante al comparar lo ganado con lo perdido?",
+      "expected": {
+        "intent": "player_net_score_leader",
+        "parameters": {
+          "alliance_names": []
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "negative_es_01",
+      "category": "negative_share_change",
+      "language": "es",
+      "question": "¿Por qué creció la parte negativa del resultado?",
+      "expected": {
+        "intent": "negative_share_change",
+        "parameters": {
+          "requested_direction": "increase"
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "unsupported_es_01",
+      "category": "unsupported_question",
+      "language": "es",
+      "question": "¿Cuántas gemas gastó cada jugador durante este SVS?",
+      "expected": {
+        "intent": "unsupported_question",
+        "parameters": {},
+        "match_status": "unsupported",
+        "guidance_code": "unsupported_question"
+      }
+    },
+    {
+      "id": "netleader_fr_01",
+      "category": "net_score_leader_summary",
+      "language": "fr",
+      "question": "Quelle alliance finit en tête si l'on ne regarde que le solde net ?",
+      "expected": {
+        "intent": "net_score_leader_summary",
+        "parameters": {},
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "contributors_fr_01",
+      "category": "top_contributors",
+      "language": "fr",
+      "question": "Montre-moi les joueurs qui ont apporté le plus de valeur positive chez NoM.",
+      "expected": {
+        "intent": "top_contributors",
+        "parameters": {
+          "alliance_names": [
+            "NoM"
+          ]
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "exclude_fr_01",
+      "category": "alliance_exclusion_total_net",
+      "language": "fr",
+      "question": "Quel serait le total net du serveur si SnS ne comptait pas ?",
+      "expected": {
+        "intent": "alliance_exclusion_total_net",
+        "parameters": {
+          "excluded_alliances": [
+            "SnS"
+          ]
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "limitation_fr_01",
+      "category": "dashboard_limitation",
+      "language": "fr",
+      "question": "Ces chiffres permettent-ils de savoir si un joueur a volontairement fait perdre son camp ?",
+      "expected": {
+        "intent": "dashboard_limitation",
+        "parameters": {},
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "overview_vi_01",
+      "category": "alliance_score_overview",
+      "language": "vi",
+      "question": "Nếu nhìn toàn bộ bảng điểm, liên minh nào có màn thể hiện mạnh nhất?",
+      "expected": {
+        "intent": "alliance_score_overview",
+        "parameters": {},
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "player_vi_01",
+      "category": "player_net_score_leader",
+      "language": "vi",
+      "question": "Người chơi nào kết thúc với chênh lệch điểm được và mất tốt nhất?",
+      "expected": {
+        "intent": "player_net_score_leader",
+        "parameters": {
+          "alliance_names": []
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "negative_vi_01",
+      "category": "negative_share_change",
+      "language": "vi",
+      "question": "Vì sao phần kết quả âm lại lớn hơn?",
+      "expected": {
+        "intent": "negative_share_change",
+        "parameters": {
+          "requested_direction": "increase"
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "unsupported_vi_01",
+      "category": "unsupported_question",
+      "language": "vi",
+      "question": "Mỗi người chơi đã dùng bao nhiêu gem trong SVS này?",
+      "expected": {
+        "intent": "unsupported_question",
+        "parameters": {},
+        "match_status": "unsupported",
+        "guidance_code": "unsupported_question"
+      }
+    },
+    {
+      "id": "netleader_id_01",
+      "category": "net_score_leader_summary",
+      "language": "id",
+      "question": "Aliansi mana yang berada paling atas jika hanya melihat skor bersih?",
+      "expected": {
+        "intent": "net_score_leader_summary",
+        "parameters": {},
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "contributors_id_01",
+      "category": "top_contributors",
+      "language": "id",
+      "question": "Tunjukkan pemain di TDA yang memberi dampak positif terbesar.",
+      "expected": {
+        "intent": "top_contributors",
+        "parameters": {
+          "alliance_names": [
+            "TDA"
+          ]
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "exclude_id_01",
+      "category": "alliance_exclusion_total_net",
+      "language": "id",
+      "question": "Berapa total skor bersih server jika MBV tidak dihitung?",
+      "expected": {
+        "intent": "alliance_exclusion_total_net",
+        "parameters": {
+          "excluded_alliances": [
+            "MBV"
+          ]
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "limitation_id_01",
+      "category": "dashboard_limitation",
+      "language": "id",
+      "question": "Bisakah angka ini menunjukkan apakah seseorang sengaja membuat timnya kalah?",
+      "expected": {
+        "intent": "dashboard_limitation",
+        "parameters": {},
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "player_th_01",
+      "category": "player_net_score_leader",
+      "language": "th",
+      "question": "ถ้าเทียบคะแนนที่ได้กับคะแนนที่เสีย ใครจบรอบโดยเหลือส่วนต่างดีที่สุด",
+      "expected": {
+        "intent": "player_net_score_leader",
+        "parameters": {
+          "alliance_names": []
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "contributors_th_01",
+      "category": "top_contributors",
+      "language": "th",
+      "question": "ใน SnS มีผู้เล่นคนไหนสร้างผลบวกให้ทีมมากที่สุดบ้าง",
+      "expected": {
+        "intent": "top_contributors",
+        "parameters": {
+          "alliance_names": [
+            "SnS"
+          ]
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "exclude_th_01",
+      "category": "alliance_exclusion_total_net",
+      "language": "th",
+      "question": "ถ้าไม่นับ NoM คะแนนสุทธิรวมของเซิร์ฟเวอร์จะเป็นเท่าไร",
+      "expected": {
+        "intent": "alliance_exclusion_total_net",
+        "parameters": {
+          "excluded_alliances": [
+            "NoM"
+          ]
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    },
+    {
+      "id": "negative_th_01",
+      "category": "negative_share_change",
+      "language": "th",
+      "question": "ทำไมสัดส่วนของผลลบถึงสูงขึ้นในรอบนี้",
+      "expected": {
+        "intent": "negative_share_change",
+        "parameters": {
+          "requested_direction": "increase"
+        },
+        "match_status": "matched",
+        "guidance_code": null
+      }
+    }
+  ]
+}
