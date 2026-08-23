@@ -205,6 +205,8 @@ def _markdown_report(run: dict[str, Any]) -> str:
         f"- Repository SHA: `{run['metadata'].get('git_sha') or 'unknown'}`",
         f"- Gateway: `{run['metadata']['base_url']}`",
         f"- Repetitions per case/model: `{run['metadata']['repetitions']}`",
+        f"- Model call ordering: `{run['metadata']['model_ordering']}`",
+        f"- Inter-call delay: `{run['metadata']['inter_call_delay_seconds']}s`",
         f"- Benchmark cases: `{run['metadata']['case_count']}`",
         f"- Total API calls attempted: `{len(rows)}`",
         "",
@@ -312,6 +314,7 @@ def _markdown_report(run: dict[str, Any]) -> str:
         "## Methodology",
         "",
         "- Both models receive the same benchmark question, known-alliance allowlist, system instruction, JSON schema, temperature, token limit, and thinking-disabled setting.",
+        "- Model order alternates by benchmark case to reduce systematic warm-cache or second-request latency bias.",
         "- The request and decoder are reused from the Ask Dashboard OpenAI-compatible intent integration so the test stays close to production behavior.",
         "- Expected results are hand-authored intent contracts. Exact-contract accuracy requires the intent, parameters, match status, and guidance code to all match.",
         "- Raw model text and validated contracts are preserved in `results.json` for auditability.",
@@ -351,6 +354,8 @@ def _write_outputs(output_dir: Path, run: dict[str, Any]) -> None:
         "question",
         "model",
         "repetition",
+        "call_index",
+        "model_order_position",
         "would_reach_ai_after_rules",
         "rule_intent",
         "valid_contract",
@@ -426,6 +431,12 @@ def main() -> int:
         help="Optional exact output directory.",
     )
     parser.add_argument(
+        "--inter-call-delay",
+        type=float,
+        default=0.25,
+        help="Seconds to pause after each API call. Default: 0.25.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Validate routing relevance and print planned call count without using the API.",
@@ -434,6 +445,8 @@ def main() -> int:
 
     if args.repetitions < 1:
         parser.error("--repetitions must be at least 1")
+    if args.inter_call_delay < 0:
+        parser.error("--inter-call-delay must be non-negative")
 
     cases_data = _read_json(args.cases)
     known = [str(name) for name in cases_data["known_alliance_names"]]
@@ -459,10 +472,15 @@ def main() -> int:
     )
 
     results: list[dict[str, Any]] = []
-    for case in cases:
+    call_index = 0
+    for case_index, case in enumerate(cases):
         relevance = _fallback_relevance(case, known)
-        for model in models:
+        # Alternate the model order by case so the same model is not always
+        # advantaged by being the second request after a potential warm-up.
+        model_order = models if case_index % 2 == 0 else list(reversed(models))
+        for model_order_position, model in enumerate(model_order, start=1):
             for repetition in range(1, args.repetitions + 1):
+                call_index += 1
                 started = time.perf_counter()
                 raw_text = None
                 contract = None
@@ -493,6 +511,8 @@ def main() -> int:
                     "expected": case["expected"],
                     "model": model,
                     "repetition": repetition,
+                    "call_index": call_index,
+                    "model_order_position": model_order_position,
                     **relevance,
                     "valid_contract": contract is not None,
                     **checks,
@@ -505,9 +525,11 @@ def main() -> int:
                 results.append(row)
                 status = "PASS" if row["exact_contract_correct"] else "FAIL"
                 print(
-                    f"[{status}] {case['id']} | {model} | "
+                    f"[{status}] #{call_index} {case['id']} | {model} | "
                     f"{latency:.2f}s | {error_code or 'ok'}"
                 )
+                if args.inter_call_delay:
+                    time.sleep(args.inter_call_delay)
 
     run = {
         "metadata": {
@@ -518,6 +540,8 @@ def main() -> int:
             "base_url": base_url,
             "models": models,
             "repetitions": args.repetitions,
+            "inter_call_delay_seconds": args.inter_call_delay,
+            "model_ordering": "alternating_by_case",
             "case_count": len(cases),
             "known_alliance_names": known,
         },
