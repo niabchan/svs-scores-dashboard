@@ -6,6 +6,14 @@ from collections.abc import Iterable
 
 import pandas as pd
 
+from ui_responsive import install_responsive_metric_styles
+
+
+# app.py imports this module before calling st.set_page_config. Install the
+# lightweight page-config wrapper here so responsive metric CSS is emitted on
+# every Streamlit rerun without coupling the score formatting to a specific tab.
+install_responsive_metric_styles()
+
 
 DEFAULT_NUMERIC_COLUMNS = (
     "score_gained",
