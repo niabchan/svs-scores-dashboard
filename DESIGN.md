@@ -23,6 +23,8 @@ Do not show all three layers at once unless the user is in a dedicated help or r
 - Use progressive disclosure for explanations that returning users no longer need.
 - Avoid nested containers and card-like decoration unless they communicate grouping or state.
 - Do not identify responsive components by screen position such as “left”, “right”, “above”, or “below” when their position can change across viewport sizes. Refer to charts and controls by their visible names instead.
+- Preserve full metric numbers rather than abbreviating them to K/M. Metric value text may auto-scale with the width of its own card so every digit remains visible.
+- Keep metric cards in the same horizontal row visually balanced on desktop and tablet widths; preserve Streamlit's native narrow-screen stacking behaviour on mobile.
 
 ## Copy rules
 
@@ -75,6 +77,8 @@ Do not let a visual-review tool alter metric definitions, calculations, routing 
 - Matching tab and in-page headings are intentionally retained where rendered review showed that they improve orientation.
 - Repeated per-chart scope remarks under the exclusion charts were removed after the shared section explanation made them redundant.
 - Dense alliance-summary table labels may be shorter than canonical terminology when header help preserves the full metric meaning.
+- Large metric values keep their full comma-separated numbers. Responsive styling scales the value from the metric card's own width and removes ellipsis truncation.
+- Metric rows use balanced card widths above the mobile breakpoint so short count values do not appear artificially smaller than neighbouring score values; mobile keeps Streamlit's native responsive behaviour.
 
 ## Deferred maintenance, not v1 blockers
 
