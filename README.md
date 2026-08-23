@@ -125,7 +125,7 @@ python -m pip install -r requirements-test.txt
 python -m pytest -q
 ```
 
-Final v1 close-out CI installs the production-pinned runtime environment, compiles the full Python tree, and passes **379 tests**.
+Final v1 close-out CI installs the production-pinned runtime environment, compiles the full Python tree, and passes **383 tests**.
 
 ## Project documentation
 
