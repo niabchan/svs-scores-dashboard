@@ -2,7 +2,7 @@
 
 The dashboard intentionally keeps score metrics as full comma-separated numbers.
 Streamlit's default metric styling can truncate long values with an ellipsis when a
-metric card becomes narrow.  This module installs a small page-config hook so the
+metric card becomes narrow. This module installs a small page-config hook so the
 responsive CSS is emitted on every Streamlit script rerun.
 """
 
@@ -16,6 +16,26 @@ from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 RESPONSIVE_METRIC_CSS = """
 <style>
+/*
+Keep metric rows visually balanced on desktop/tablet. Some dashboard rows were
+created with intentionally uneven Streamlit column weights, which made short count
+metrics (for example Players = 100) shrink more than neighbouring score values once
+font size became container-responsive. Equal card widths keep values in the same
+row at a consistent visual scale while the value-level autoscaling below still
+protects long full numbers.
+
+Limit this override to metric-bearing horizontal rows and non-mobile widths so
+Streamlit can retain its native narrow-screen column behaviour.
+*/
+@media (min-width: 641px) {
+    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] [data-testid="stMetric"])
+        > [data-testid="stColumn"] {
+        flex: 1 1 0 !important;
+        width: 0 !important;
+        min-width: 0 !important;
+    }
+}
+
 /* Let metric values scale with the width of their own card, not the viewport. */
 [data-testid="stMetric"] {
     container-name: svs-metric;
