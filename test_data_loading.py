@@ -60,6 +60,41 @@ def test_loader_does_not_mutate_source_dataframe():
     assert loaded.loc[0, "net_score"] == -20
 
 
+def test_loader_derives_only_missing_net_status_values():
+    source = pd.DataFrame(
+        {
+            "net_score": ["1,250", "- 25", "0", "999", "-999"],
+            "net_status": [None, "NULL", " ", "Keep Me", "Negative"],
+        }
+    )
+
+    loaded = coerce_numeric_columns(source, ["net_score"])
+
+    assert loaded["net_status"].tolist() == [
+        "Positive",
+        "Negative",
+        "Zero",
+        "Keep Me",
+        "Negative",
+    ]
+
+
+def test_repository_w33_missing_net_status_is_repaired_on_load():
+    raw = pd.read_csv("svs_scores_utf8.csv")
+    loaded = coerce_numeric_columns(raw)
+
+    w33 = loaded[loaded["svs_date"].astype(str) == "2026-W33"].copy()
+
+    assert not w33.empty
+    assert raw.loc[
+        raw["svs_date"].astype(str) == "2026-W33", "net_status"
+    ].dropna().empty
+    assert w33.loc[w33["net_score"].gt(0), "net_status"].eq("Positive").all()
+    assert w33.loc[w33["net_score"].lt(0), "net_status"].eq("Negative").all()
+    assert w33.loc[w33["net_score"].notna(), "net_status"].notna().all()
+    assert {"Positive", "Negative"}.issubset(set(w33["net_status"].dropna()))
+
+
 def test_repository_csv_restores_w23_embedded_whitespace_scores():
     raw = pd.read_csv("svs_scores_utf8.csv")
     columns = ["score_gained", "score_lost", "net_score", "competition_rank"]
