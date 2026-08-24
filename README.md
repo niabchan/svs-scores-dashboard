@@ -15,7 +15,7 @@ SVS Scores Dashboard is a Streamlit analytics project for comparing score gained
 - **Player Selection Insight** — see how including or excluding selected players changes server-level results and alliance summaries.
 - **Ask Dashboard** — ask supported analytical questions about rankings, contribution, exclusions, metric definitions, and the active filter scope.
 
-The source dataset currently contains recorded periods through **2026-W31**.
+The source dataset currently contains recorded periods through **2026-W33**.
 
 ## Languages
 
@@ -78,7 +78,7 @@ A broad “best player” question uses **Net Score** as the dashboard's default
 
 Some score-gained values are based on Evony's rounded in-game display. Where that limitation applies, calculated totals, net scores, rankings, and derived results are approximate and the dashboard preserves a data notice.
 
-Blank one-sided score fields and source formatting are handled by the data loader without silently changing the source CSV. The project keeps Score Gained, Score Lost, Net Score, Positive Contribution, and Negative Contribution as distinct concepts.
+Blank one-sided score fields and source formatting are handled by the data loader without changing the source CSV. Because `net_status` is derivable from `net_score`, a blank/NULL-like status is filled at load time from the sign of the numeric net score so a newly uploaded period is not accidentally filtered out. Existing non-empty status values are preserved. The project keeps Score Gained, Score Lost, Net Score, Positive Contribution, and Negative Contribution as distinct concepts.
 
 ## Privacy-aware analytics
 
@@ -125,7 +125,7 @@ python -m pip install -r requirements-test.txt
 python -m pytest -q
 ```
 
-Final v1 close-out CI installs the production-pinned runtime environment, compiles the full Python tree, and passes **383 tests**.
+Current CI installs the production-pinned runtime environment, compiles the full Python tree, and passes **385 tests**.
 
 ## Project documentation
 
