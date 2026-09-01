@@ -1485,6 +1485,11 @@ with tab_players:
 
     chart_title = t(ranking_option)
 
+    def get_ranked_players(df, column, count=10, ascending=False):
+    # เรียง df ด้วย column
+    # เลือกจำนวนแถวตาม count
+    # return ผลลัพธ์
+
     ranking_df = (
         ranking_source
         .sort_values(
@@ -1496,7 +1501,7 @@ with tab_players:
     )
 
     fig_ranking = px.bar(
-        ranking_df,
+        get_ranked_players,
         x="player_name",
         y=y_column,
         color="alliance",
