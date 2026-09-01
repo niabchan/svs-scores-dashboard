@@ -1490,15 +1490,15 @@ with tab_players:
     # เลือกจำนวนแถวตาม count
     # return ผลลัพธ์
 
-    ranking_df = (
-        ranking_source
-        .sort_values(
-            sort_column,
-            ascending=sort_ascending,
-            na_position="last"
-        )
-        .head(10)
-    )
+      ranking_df = (
+          ranking_source
+          .sort_values(
+              sort_column,
+              ascending=sort_ascending,
+              na_position="last"
+          )
+          .head(10)
+      )
 
     fig_ranking = px.bar(
         get_ranked_players,
