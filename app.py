@@ -1489,19 +1489,19 @@ with tab_players:
     # เรียง df ด้วย column
     # เลือกจำนวนแถวตาม count
     # return ผลลัพธ์
-
-      ranking_df = (
-          ranking_source
-          .sort_values(
-              sort_column,
-              ascending=sort_ascending,
-              na_position="last"
-          )
-          .head(10)
-      )
+    """Sort df by column and return top count rows."""
+        return (
+            df
+            .sort_values(
+                column,
+                ascending=ascending,
+                na_position="last"
+            )
+            .head(count)
+        )
 
     fig_ranking = px.bar(
-        get_ranked_players,
+        get_ranked_players(ranking_source, sort_column, count=10, ascending=sort_ascending),
         x="player_name",
         y=y_column,
         color="alliance",
