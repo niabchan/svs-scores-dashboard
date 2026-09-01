@@ -1489,7 +1489,6 @@ with tab_players:
     # เรียง df ด้วย column
     # เลือกจำนวนแถวตาม count
     # return ผลลัพธ์
-    """Sort df by column and return top count rows."""
         return (
             df
             .sort_values(
